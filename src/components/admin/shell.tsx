@@ -161,6 +161,12 @@ function crumbLabel(pathname: string) {
   return item?.label ?? pathname.replace("/admin/", "");
 }
 
+function navTarget(to: string): { home: true } | { home: false; section: string } {
+  const path = to.split("?")[0] ?? "/admin";
+  if (path === "/admin" || path === "/admin/") return { home: true };
+  return { home: false, section: path.replace(/^\/admin\//, "") };
+}
+
 export function AdminShell({
   children,
   permissions,
@@ -276,8 +282,9 @@ export function AdminShell({
   function go(to: string) {
     setDrawer(false);
     setCmdOpen(false);
-    const [path] = to.split("?");
-    void navigate({ to: path });
+    const target = navTarget(to);
+    if (target.home) void navigate({ to: "/admin" });
+    else void navigate({ to: "/admin/$section", params: { section: target.section } });
   }
 
   function badgeValue(key?: BadgeKey) {
@@ -302,20 +309,16 @@ export function AdminShell({
                 const Icon = n.icon;
                 const count = badgeValue(n.badge);
                 const critical = n.badge === "errors" && count > 0;
-                return (
-                  <Link
-                    key={n.to}
-                    to={n.to}
-                    title={compact ? n.label : undefined}
-                    onClick={() => setDrawer(false)}
-                    className={cn(
-                      "group relative flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors",
-                      compact && "justify-center px-0",
-                      active
-                        ? "border-l-2 border-primary bg-primary/10 font-medium text-primary"
-                        : "border-l-2 border-transparent text-muted hover:bg-raised/80 hover:text-fg",
-                    )}
-                  >
+                const target = navTarget(n.to);
+                const className = cn(
+                  "group relative flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors",
+                  compact && "justify-center px-0",
+                  active
+                    ? "border-l-2 border-primary bg-primary/10 font-medium text-primary"
+                    : "border-l-2 border-transparent text-muted hover:bg-raised/80 hover:text-fg",
+                );
+                const body = (
+                  <>
                     <Icon className={cn("size-[18px] shrink-0", active ? "text-primary" : "text-muted group-hover:text-fg")} />
                     {compact ? null : <span className="min-w-0 flex-1 truncate">{n.label}</span>}
                     {!compact && count > 0 ? (
@@ -331,6 +334,25 @@ export function AdminShell({
                     {compact && count > 0 ? (
                       <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />
                     ) : null}
+                  </>
+                );
+                if (target.home) {
+                  return (
+                    <Link key={n.to} to="/admin" title={compact ? n.label : undefined} onClick={() => setDrawer(false)} className={className}>
+                      {body}
+                    </Link>
+                  );
+                }
+                return (
+                  <Link
+                    key={n.to}
+                    to="/admin/$section"
+                    params={{ section: target.section }}
+                    title={compact ? n.label : undefined}
+                    onClick={() => setDrawer(false)}
+                    className={className}
+                  >
+                    {body}
                   </Link>
                 );
               })}
@@ -375,7 +397,7 @@ export function AdminShell({
   const sidebarInner = (
     <>
       {brand}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="admin-scroll min-h-0 flex-1">
         <NavList compact={collapsed} />
         {collapsed ? null : <SidePins />}
       </div>
@@ -410,7 +432,7 @@ export function AdminShell({
                 <X className="size-4" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="admin-scroll min-h-0 flex-1">
               <NavList compact={false} />
             </div>
             {profile}

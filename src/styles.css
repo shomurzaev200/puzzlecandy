@@ -105,6 +105,21 @@
   .admin-shell {
     background-color: var(--color-bg);
   }
+  .admin-scroll {
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--color-primary) 32%, transparent) transparent;
+  }
+  .admin-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .admin-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .admin-scroll::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-primary) 28%, #122018);
+    border-radius: 99px;
+  }
   .sla-blink {
     animation: sla-blink 1.1s ease-in-out infinite;
   }
