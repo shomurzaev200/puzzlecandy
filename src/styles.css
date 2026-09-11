@@ -98,6 +98,13 @@
       auto,
       auto;
   }
+  .admin-sidebar {
+    background: color-mix(in oklab, var(--color-surface) 94%, #000);
+    box-shadow: inset -1px 0 0 color-mix(in oklab, var(--color-primary) 10%, transparent);
+  }
+  .admin-shell {
+    background-color: var(--color-bg);
+  }
   .sla-blink {
     animation: sla-blink 1.1s ease-in-out infinite;
   }

@@ -67,6 +67,21 @@ export const adminDashboard = createServerFn({ method: "GET" })
     return dashboardStats();
   });
 
+export const adminNavCounts = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.userId);
+    const db = await getSql();
+    const q = async (text: string) => asInt((await one<{ n: number }>(db, text))?.n);
+    const [orders, payments, errors, tickets] = await Promise.all([
+      q(`select count(*)::int as n from orders where status in ('NEW','PAID','PROCESSING')`),
+      q(`select count(*)::int as n from payments where status='PENDING'`),
+      q(`select count(*)::int as n from system_errors where created_at > now() - interval '24 hours'`),
+      q(`select count(*)::int as n from support_tickets where status in ('OPEN','WAITING')`),
+    ]);
+    return { orders, payments, errors, tickets };
+  });
+
 export const adminUsers = createServerFn({ method: "GET" })
   .validator((d: { q?: string; status?: string; filter?: string; offset?: number }) => d)
   .middleware([authMiddleware])

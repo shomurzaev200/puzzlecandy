@@ -2,29 +2,42 @@ import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import {
   Activity,
+  AlertTriangle,
   Bell,
   Bot,
   Boxes,
+  Briefcase,
+  ChevronRight,
   ClipboardList,
   FolderTree,
   Headphones,
+  KeyRound,
   LayoutDashboard,
+  LogOut,
   Map,
   Menu,
+  MessageSquareText,
+  PanelLeftClose,
+  PanelLeftOpen,
   Receipt,
+  RefreshCw,
+  Rows3,
+  ScrollText,
   Search,
   Settings,
-  ShieldAlert,
+  Shield,
+  ShieldCheck,
   ShoppingBag,
+  Sparkles,
   Star,
+  Ticket,
   Truck,
   Users,
   Wallet,
-  Briefcase,
-  ScrollText,
-  Shield,
+  Webhook,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Command } from "cmdk";
 import { Toaster, toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -37,43 +50,92 @@ import { ta, roleLabel, toneClass, statusLabel } from "@/lib/shop/admin-i18n";
 import { InboxBell, SidePins, useDensity } from "./ops-kit";
 import { evalCommandCalc, loadSoundPrefs, playPing, slaLevel, slaMinutes } from "@/lib/shop/ops-client";
 import { opsSearch } from "@/lib/shop/fn-ops";
+import { adminNavCounts } from "@/lib/shop/fn-admin";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; perm?: Permission; emoji: string };
+type BadgeKey = "orders" | "payments" | "errors" | "tickets" | "unread";
 
-export const NAV: NavItem[] = [
-  { to: "/admin", label: ta("nav_dashboard"), icon: LayoutDashboard, perm: "dashboard", emoji: "⌂" },
-  { to: "/admin/users", label: ta("nav_users"), icon: Users, perm: "users.read", emoji: "👤" },
-  { to: "/admin/products", label: ta("nav_products"), icon: ShoppingBag, perm: "products.read", emoji: "💎" },
-  { to: "/admin/categories", label: ta("nav_categories"), icon: FolderTree, perm: "categories.write", emoji: "📂" },
-  { to: "/admin/orders", label: ta("nav_orders"), icon: ClipboardList, perm: "orders.read", emoji: "🛒" },
-  { to: "/admin/payments", label: ta("nav_payments"), icon: Wallet, perm: "payments.read", emoji: "💳" },
-  { to: "/admin/transactions", label: ta("nav_transactions"), icon: Receipt, perm: "transactions.read", emoji: "💰" },
-  { to: "/admin/couriers", label: ta("nav_couriers"), icon: Truck, perm: "couriers.read", emoji: "🚚" },
-  { to: "/admin/map", label: ta("nav_map"), icon: Map, perm: "map.read", emoji: "📍" },
-  { to: "/admin/reviews", label: ta("nav_reviews"), icon: Star, perm: "reviews.moderate", emoji: "⭐" },
-  { to: "/admin/support", label: ta("nav_support"), icon: Headphones, perm: "support.read", emoji: "🎧" },
-  { to: "/admin/jobs", label: ta("nav_jobs"), icon: Briefcase, perm: "jobs.write", emoji: "💼" },
-  { to: "/admin/analytics", label: ta("nav_analytics"), icon: Activity, perm: "analytics.read", emoji: "📊" },
-  { to: "/admin/notifications", label: ta("nav_notifications"), icon: Bell, perm: "notifications.read", emoji: "🔔" },
-  { to: "/admin/bots", label: ta("nav_bots"), icon: Bot, perm: "bots.manage", emoji: "🤖" },
-  { to: "/admin/settings", label: ta("nav_settings"), icon: Settings, perm: "settings.read", emoji: "⚙️" },
-  { to: "/admin/audit", label: ta("nav_audit"), icon: ScrollText, perm: "audit.read", emoji: "🛡" },
-  { to: "/admin/errors", label: ta("nav_errors"), icon: ShieldAlert, perm: "errors.read", emoji: "🚨" },
-  { to: "/admin/staff", label: ta("nav_roles"), icon: Shield, perm: "roles.write", emoji: "🔐" },
-  { to: "/admin/ops", label: "Операции", icon: Activity, perm: "dashboard", emoji: "⚡" },
-  { to: "/admin/refunds", label: "Возвраты", icon: Wallet, perm: "payments.read", emoji: "↩️" },
-  { to: "/admin/promo", label: "Промокоды", icon: Star, perm: "settings.read", emoji: "🎟" },
-  { to: "/admin/payouts", label: "Выплаты", icon: Truck, perm: "couriers.read", emoji: "💵" },
-  { to: "/admin/segments", label: "Сегменты", icon: Users, perm: "users.read", emoji: "🧩" },
-  { to: "/admin/approvals", label: "Согласования", icon: ClipboardList, perm: "dashboard", emoji: "🕓" },
-  { to: "/admin/rules", label: "Правила", icon: Shield, perm: "settings.read", emoji: "⛓" },
-  { to: "/admin/handover", label: "Смена", icon: Briefcase, perm: "dashboard", emoji: "🔄" },
-  { to: "/admin/canned", label: "Шаблоны", icon: Headphones, perm: "support.write", emoji: "💬" },
-  { to: "/admin/keys", label: "API-ключи", icon: Shield, perm: "settings.secrets", emoji: "🔑" },
-  { to: "/admin/webhooks", label: "Вебхуки", icon: Bot, perm: "settings.write", emoji: "🔗" },
-  { to: "/admin/changelog", label: "Что нового", icon: ScrollText, perm: "dashboard", emoji: "🆕" },
-  { to: "/admin/help", label: "Справка", icon: Search, perm: "dashboard", emoji: "🎓" },
+type NavItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  perm?: Permission;
+  badge?: BadgeKey;
+};
+
+type NavGroup = { id: string; label: string; items: NavItem[] };
+
+export const NAV_GROUPS: NavGroup[] = [
+  {
+    id: "overview",
+    label: ta("nav_group_overview"),
+    items: [
+      { to: "/admin", label: ta("nav_dashboard"), icon: LayoutDashboard, perm: "dashboard" },
+      { to: "/admin/analytics", label: ta("nav_analytics"), icon: Activity, perm: "analytics.read" },
+    ],
+  },
+  {
+    id: "ops",
+    label: ta("nav_group_ops"),
+    items: [
+      { to: "/admin/orders", label: ta("nav_orders"), icon: ClipboardList, perm: "orders.read", badge: "orders" },
+      { to: "/admin/payments", label: ta("nav_payments"), icon: Wallet, perm: "payments.read", badge: "payments" },
+      { to: "/admin/transactions", label: ta("nav_transactions"), icon: Receipt, perm: "transactions.read" },
+      { to: "/admin/refunds", label: "Возвраты", icon: RefreshCw, perm: "payments.read" },
+      { to: "/admin/approvals", label: "Согласования", icon: ShieldCheck, perm: "dashboard" },
+      { to: "/admin/couriers", label: ta("nav_couriers"), icon: Truck, perm: "couriers.read" },
+      { to: "/admin/map", label: ta("nav_map"), icon: Map, perm: "map.read" },
+      { to: "/admin/payouts", label: "Выплаты", icon: Wallet, perm: "couriers.read" },
+      { to: "/admin/ops", label: "Операции", icon: Sparkles, perm: "dashboard" },
+    ],
+  },
+  {
+    id: "catalog",
+    label: ta("nav_group_catalog"),
+    items: [
+      { to: "/admin/products", label: ta("nav_products"), icon: ShoppingBag, perm: "products.read" },
+      { to: "/admin/categories", label: ta("nav_categories"), icon: FolderTree, perm: "categories.write" },
+      { to: "/admin/reviews", label: ta("nav_reviews"), icon: Star, perm: "reviews.moderate" },
+      { to: "/admin/promo", label: "Промокоды", icon: Ticket, perm: "settings.read" },
+    ],
+  },
+  {
+    id: "people",
+    label: ta("nav_group_people"),
+    items: [
+      { to: "/admin/users", label: ta("nav_users"), icon: Users, perm: "users.read" },
+      { to: "/admin/segments", label: "Сегменты", icon: Users, perm: "users.read" },
+      { to: "/admin/jobs", label: ta("nav_jobs"), icon: Briefcase, perm: "jobs.write" },
+    ],
+  },
+  {
+    id: "comms",
+    label: ta("nav_group_comms"),
+    items: [
+      { to: "/admin/support", label: ta("nav_support"), icon: Headphones, perm: "support.read", badge: "tickets" },
+      { to: "/admin/bots", label: ta("nav_bots"), icon: Bot, perm: "bots.manage" },
+      { to: "/admin/notifications", label: ta("nav_notifications"), icon: Bell, perm: "notifications.read", badge: "unread" },
+      { to: "/admin/canned", label: "Шаблоны", icon: MessageSquareText, perm: "support.write" },
+    ],
+  },
+  {
+    id: "system",
+    label: ta("nav_group_system"),
+    items: [
+      { to: "/admin/staff", label: ta("nav_roles"), icon: Shield, perm: "roles.write" },
+      { to: "/admin/audit", label: ta("nav_audit"), icon: ScrollText, perm: "audit.read" },
+      { to: "/admin/errors", label: ta("nav_errors"), icon: AlertTriangle, perm: "errors.read", badge: "errors" },
+      { to: "/admin/settings", label: ta("nav_settings"), icon: Settings, perm: "settings.read" },
+      { to: "/admin/rules", label: "Правила", icon: ShieldCheck, perm: "settings.read" },
+      { to: "/admin/keys", label: "API-ключи", icon: KeyRound, perm: "settings.secrets" },
+      { to: "/admin/webhooks", label: "Вебхуки", icon: Webhook, perm: "settings.write" },
+      { to: "/admin/handover", label: "Смена", icon: RefreshCw, perm: "dashboard" },
+      { to: "/admin/changelog", label: "Что нового", icon: ScrollText, perm: "dashboard" },
+      { to: "/admin/help", label: "Справка", icon: Search, perm: "dashboard" },
+    ],
+  },
 ];
+
+export const NAV: NavItem[] = NAV_GROUPS.flatMap((g) => g.items);
 
 const COMMANDS: Array<{ id: string; label: string; to: string; keywords: string }> = [
   { id: "user", label: ta("cmd_find_user"), to: "/admin/users", keywords: "пользователь user @ " },
@@ -86,24 +148,73 @@ const COMMANDS: Array<{ id: string; label: string; to: string; keywords: string 
   { id: "bots", label: ta("nav_bots"), to: "/admin/bots", keywords: "telegram бот" },
 ];
 
+type Counts = { orders: number; payments: number; errors: number; tickets: number };
+
+function isActivePath(pathname: string, to: string) {
+  if (to === "/admin") return pathname === "/admin";
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+function crumbLabel(pathname: string) {
+  if (pathname === "/admin") return ta("crumbs_home");
+  const item = NAV.find((n) => n.to !== "/admin" && (pathname === n.to || pathname.startsWith(`${n.to}/`)));
+  return item?.label ?? pathname.replace("/admin/", "");
+}
+
 export function AdminShell({
   children,
   permissions,
   unread,
   role,
+  email,
+  name,
 }: {
   children: ReactNode;
   permissions: Permission[];
   unread: number;
   role: string;
+  email?: string | null;
+  name?: string | null;
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const [drawer, setDrawer] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
   const [cmdQ, setCmdQ] = useState("");
+  const [collapsed, setCollapsed] = useState(false);
+  const [live, setLive] = useState(true);
+  const [counts, setCounts] = useState<Counts>({ orders: 0, payments: 0, errors: 0, tickets: 0 });
   const { density, set: setDensity } = useDensity();
-  const items = NAV.filter((n) => !n.perm || permissions.includes(n.perm));
+
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem("pc.sidebar") === "collapsed");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    adminNavCounts()
+      .then(setCounts)
+      .catch(() => undefined);
+    const t = window.setInterval(() => {
+      adminNavCounts()
+        .then(setCounts)
+        .catch(() => undefined);
+    }, 20000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  const groups = useMemo(
+    () =>
+      NAV_GROUPS.map((g) => ({
+        ...g,
+        items: g.items.filter((n) => !n.perm || permissions.includes(n.perm)),
+      })).filter((g) => g.items.length > 0),
+    [permissions],
+  );
+  const items = useMemo(() => groups.flatMap((g) => g.items), [groups]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -114,6 +225,10 @@ export function AdminShell({
       if ((e.metaKey || e.ctrlKey) && e.key === "/") {
         e.preventDefault();
         setCmdOpen(true);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        toggleCollapsed();
       }
       if (e.key === "F1") {
         e.preventDefault();
@@ -127,7 +242,10 @@ export function AdminShell({
 
   useEffect(() => {
     const es = new EventSource("/api/events");
+    es.onopen = () => setLive(true);
+    es.onerror = () => setLive(false);
     es.onmessage = (ev) => {
+      setLive(true);
       try {
         const data = JSON.parse(ev.data) as { type?: string; title?: string; body?: string };
         if (!data?.title) return;
@@ -143,6 +261,18 @@ export function AdminShell({
     return () => es.close();
   }, []);
 
+  function toggleCollapsed() {
+    setCollapsed((v) => {
+      const next = !v;
+      try {
+        localStorage.setItem("pc.sidebar", next ? "collapsed" : "open");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
   function go(to: string) {
     setDrawer(false);
     setCmdOpen(false);
@@ -150,35 +280,111 @@ export function AdminShell({
     void navigate({ to: path });
   }
 
-  const nav = (
-    <nav className="flex gap-1 overflow-x-auto px-2 pb-3 lg:block lg:space-y-0.5 lg:overflow-visible lg:px-2 lg:pb-6">
-      {items.map((n) => {
-        const active = n.to === "/admin" ? pathname === "/admin" : pathname.startsWith(n.to);
-        return (
-          <Link
-            key={n.to}
-            to={n.to}
-            onClick={() => setDrawer(false)}
-            className={cn(
-              "flex min-h-11 shrink-0 items-center gap-2 rounded-md px-3 text-sm",
-              active ? "bg-raised text-primary glow-sm" : "text-muted hover:bg-panel hover:text-fg",
+  function badgeValue(key?: BadgeKey) {
+    if (!key) return 0;
+    if (key === "unread") return unread;
+    return counts[key] ?? 0;
+  }
+
+  function NavList({ compact }: { compact: boolean }) {
+    return (
+      <nav className="space-y-4 px-2 pb-4">
+        {groups.map((g) => (
+          <div key={g.id}>
+            {compact ? (
+              <div className="mx-auto mb-1 h-px w-6 bg-border" />
+            ) : (
+              <p className="px-3 pb-1 text-[10px] font-medium tracking-[0.16em] text-faint uppercase">{g.label}</p>
             )}
-          >
-            <span className="w-5 text-center text-xs" aria-hidden>
-              {n.emoji}
-            </span>
-            <span className="whitespace-nowrap">{n.label}</span>
-            {n.to === "/admin/notifications" && unread > 0 ? (
-              <span className="ml-auto rounded-full bg-primary px-1.5 font-mono text-[10px] text-bg">{unread}</span>
-            ) : null}
-          </Link>
-        );
-      })}
-    </nav>
+            <div className="space-y-0.5">
+              {g.items.map((n) => {
+                const active = isActivePath(pathname, n.to);
+                const Icon = n.icon;
+                const count = badgeValue(n.badge);
+                const critical = n.badge === "errors" && count > 0;
+                return (
+                  <Link
+                    key={n.to}
+                    to={n.to}
+                    title={compact ? n.label : undefined}
+                    onClick={() => setDrawer(false)}
+                    className={cn(
+                      "group relative flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 text-[13px] transition-colors",
+                      compact && "justify-center px-0",
+                      active
+                        ? "border-l-2 border-primary bg-primary/10 font-medium text-primary"
+                        : "border-l-2 border-transparent text-muted hover:bg-raised/80 hover:text-fg",
+                    )}
+                  >
+                    <Icon className={cn("size-[18px] shrink-0", active ? "text-primary" : "text-muted group-hover:text-fg")} />
+                    {compact ? null : <span className="min-w-0 flex-1 truncate">{n.label}</span>}
+                    {!compact && count > 0 ? (
+                      <span
+                        className={cn(
+                          "ml-auto rounded-full px-1.5 py-0.5 font-mono text-[10px]",
+                          critical ? "bg-danger/20 text-danger" : "bg-raised text-muted",
+                        )}
+                      >
+                        {count}
+                      </span>
+                    ) : null}
+                    {compact && count > 0 ? (
+                      <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />
+                    ) : null}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+    );
+  }
+
+  const brand = (
+    <div className={cn("flex items-center gap-2.5 px-3 py-3", collapsed && "justify-center px-2")}>
+      <div className="grid size-8 shrink-0 place-items-center rounded-lg border border-primary/30 bg-primary/10">
+        <Boxes className="size-4 text-primary" />
+      </div>
+      {collapsed ? null : (
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-semibold tracking-wide text-fg">PUZZLECANDY</p>
+          <p className="truncate text-[10px] uppercase tracking-[0.14em] text-primary">{roleLabel(role)}</p>
+        </div>
+      )}
+    </div>
+  );
+
+  const profile = (
+    <div className={cn("border-t border-border p-2", collapsed && "px-1")}>
+      <div className={cn("flex items-center gap-2 rounded-lg px-2 py-2", collapsed && "justify-center px-0")}>
+        <div className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/15 font-mono text-[11px] text-primary">
+          {(name || email || "A").slice(0, 1).toUpperCase()}
+        </div>
+        {collapsed ? null : (
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[12px] text-fg">{name || roleLabel(role)}</p>
+            <p className="truncate text-[11px] text-muted">{email || "оператор"}</p>
+          </div>
+        )}
+        {collapsed ? null : <AdminUser confirm />}
+      </div>
+    </div>
+  );
+
+  const sidebarInner = (
+    <>
+      {brand}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <NavList compact={collapsed} />
+        {collapsed ? null : <SidePins />}
+      </div>
+      {profile}
+    </>
   );
 
   return (
-    <div className="grid-bg min-h-screen lg:grid lg:grid-cols-[260px_1fr]" data-density={density}>
+    <div className="admin-shell grid-bg flex h-[100dvh] overflow-hidden" data-density={density}>
       <Toaster
         theme="dark"
         position="top-right"
@@ -186,63 +392,95 @@ export function AdminShell({
           className: "panel !bg-surface !text-fg !border-border",
         }}
       />
-      <aside className="hidden border-r border-border lg:block">
-        <div className="flex items-center gap-2 px-4 py-4">
-          <Boxes className="size-4 text-primary" />
-          <div>
-            <p className="font-mono text-[11px] tracking-[0.22em] text-primary">🍬 PUZZLECANDY</p>
-            <p className="text-[11px] text-muted">{roleLabel(role)}</p>
-          </div>
-        </div>
-        {nav}
-        <SidePins />
+      <aside
+        className={cn(
+          "admin-sidebar hidden h-full shrink-0 flex-col border-r border-border lg:flex",
+          collapsed ? "w-16" : "w-[260px]",
+        )}
+      >
+        {sidebarInner}
       </aside>
       {drawer ? (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button type="button" className="absolute inset-0 bg-bg/70" aria-label={ta("close")} onClick={() => setDrawer(false)} />
-          <div className="relative h-full w-[min(86vw,280px)] overflow-y-auto border-r border-border bg-surface">
-            <div className="flex items-center justify-between px-4 py-4">
-              <p className="font-mono text-[11px] tracking-[0.22em] text-primary">🍬 PUZZLECANDY</p>
+          <div className="admin-sidebar relative flex h-full w-[min(86vw,280px)] flex-col border-r border-border">
+            <div className="flex items-center justify-between pr-1">
+              {brand}
               <button type="button" className="grid size-11 place-items-center" onClick={() => setDrawer(false)}>
                 <X className="size-4" />
               </button>
             </div>
-            {nav}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <NavList compact={false} />
+            </div>
+            {profile}
           </div>
         </div>
       ) : null}
-      <div className="min-w-0">
-        <header className="flex items-center justify-between gap-3 border-b border-border px-3 py-3 lg:px-4">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-3 border-b border-border bg-bg/80 px-3 backdrop-blur-md lg:px-4">
           <button
             type="button"
-            className="grid size-11 place-items-center rounded-md border border-border lg:hidden"
+            className="grid size-10 place-items-center rounded-md border border-border lg:hidden"
             onClick={() => setDrawer(true)}
             aria-label={ta("menu")}
           >
             <Menu className="size-4" />
           </button>
+          <button
+            type="button"
+            className="hidden size-10 place-items-center rounded-md border border-border text-muted hover:text-fg lg:grid"
+            onClick={toggleCollapsed}
+            title={collapsed ? ta("nav_expand") : ta("nav_collapse")}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+          <div className="hidden items-center gap-1 text-[12px] text-muted sm:flex">
+            <Link to="/admin" className="hover:text-fg">
+              {ta("crumbs_home")}
+            </Link>
+            {pathname !== "/admin" ? (
+              <>
+                <ChevronRight className="size-3.5" />
+                <span className="text-fg">{crumbLabel(pathname)}</span>
+              </>
+            ) : null}
+          </div>
           <GlobalSearch />
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="hidden min-h-11 items-center gap-1 rounded-md border border-border px-3 text-xs text-muted sm:flex"
+              className="hidden min-h-10 items-center gap-1 rounded-md border border-border px-2.5 text-[11px] text-muted sm:flex"
               onClick={() => setCmdOpen(true)}
             >
+              <Search className="size-3.5" />
               {ta("cmd_hint")}
             </button>
+            <span
+              className={cn(
+                "hidden items-center gap-1.5 rounded-full border px-2 py-1 text-[11px] sm:inline-flex",
+                live ? "border-primary/30 text-primary" : "border-danger/30 text-danger",
+              )}
+              title={live ? ta("sys_ok") : ta("nav_errors")}
+            >
+              <span className={cn("size-1.5 rounded-full", live ? "bg-primary" : "bg-danger")} />
+              {ta("sys_live")}
+            </span>
             <button
               type="button"
-              className="hidden min-h-11 items-center rounded-md border border-border px-2 text-[11px] text-muted sm:flex"
+              className="hidden size-10 place-items-center rounded-md border border-border text-muted sm:grid"
               onClick={() => setDensity(density === "compact" ? "comfortable" : "compact")}
               title="Плотность"
             >
-              {density === "compact" ? "Compact" : "Comfort"}
+              <Rows3 className="size-4" />
             </button>
             <InboxBell unread={unread} />
-            <AdminUser />
+            <div className="hidden lg:block">
+              <AdminUser confirm />
+            </div>
           </div>
         </header>
-        <div className="p-4 lg:p-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">{children}</div>
       </div>
       {cmdOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-start bg-bg/70 pt-[12vh]">
@@ -322,14 +560,14 @@ function GlobalSearch() {
 
   return (
     <div className="relative min-w-0 flex-1">
-      <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-panel px-3">
+      <div className="flex min-w-0 items-center gap-2 rounded-md border border-border bg-panel/80 px-3">
         <Search className="size-4 shrink-0 text-muted" />
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onFocus={() => q.trim() && setOpen(true)}
           placeholder={ta("search_placeholder")}
-          className="min-h-11 w-full bg-transparent text-sm outline-none"
+          className="min-h-10 w-full bg-transparent text-sm outline-none"
         />
       </div>
       {open && q.trim() ? (
@@ -418,11 +656,11 @@ export function Badge({ value }: { value: string | null | undefined }) {
 const subscribeToNothing = () => () => {};
 const noGateOnServer = () => false;
 
-function AdminUser() {
+function AdminUser({ confirm = false }: { confirm?: boolean }) {
   const [signingOut, setSigningOut] = useState(false);
   const gateSession = useSyncExternalStore(subscribeToNothing, hasGateSessionMarker, noGateOnServer);
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1">
       <div className="[&_button]:hidden">
         <UserButton />
       </div>
@@ -430,13 +668,16 @@ function AdminUser() {
         <button
           type="button"
           disabled={signingOut}
-          className="min-h-11 rounded-md px-2 text-xs text-muted hover:text-fg"
+          className="grid size-9 place-items-center rounded-md text-muted hover:bg-raised hover:text-danger"
+          title={ta("logout")}
           onClick={() => {
+            if (confirm && !window.confirm(ta("logout_confirm"))) return;
             setSigningOut(true);
             void signOut().catch(() => setSigningOut(false));
           }}
         >
-          {signingOut ? ta("signing_out") : ta("logout")}
+          <LogOut className="size-4" />
+          <span className="sr-only">{signingOut ? ta("signing_out") : ta("logout")}</span>
         </button>
       ) : null}
     </div>
@@ -470,7 +711,7 @@ export function WaitBadge({ since }: { since: unknown }) {
         level === "crit" && "sla-blink bg-danger/15 text-danger",
       )}
     >
-      {level === "crit" || level === "warn" ? `⏳ ${mins} мин` : `${ta("sla")}: ${label}`}
+      {level === "crit" || level === "warn" ? `SLA ${mins} мин` : `${ta("sla")}: ${label}`}
     </span>
   );
 }
@@ -519,3 +760,4 @@ export function SavedFilters({
     </div>
   );
 }
+

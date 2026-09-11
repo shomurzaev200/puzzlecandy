@@ -68,7 +68,13 @@ function AdminLayout() {
   if (!admin) return <RedirectToSignIn />;
 
   return (
-    <AdminShell permissions={admin.permissions} unread={unread} role={admin.role}>
+    <AdminShell
+      permissions={admin.permissions}
+      unread={unread}
+      role={admin.role}
+      email={admin.email}
+      name={admin.name}
+    >
       <Outlet />
     </AdminShell>
   );
