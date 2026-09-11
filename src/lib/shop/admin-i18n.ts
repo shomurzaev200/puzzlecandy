@@ -1,0 +1,515 @@
+import type { Lang } from "./types";
+
+const POSITIVE = new Set(["APPROVED", "ACTIVE", "ONLINE", "CONNECTED", "COMPLETED", "DELIVERED", "PAID", "VISIBLE", "VIP", "LIVE"]);
+const WARN = new Set(["PENDING", "PENDING_REVIEW", "CHECKING", "NEED_AUTH", "PROCESSING", "PREPARING", "IN_DELIVERY", "COURIER_ASSIGNED", "WAITING"]);
+const BAD = new Set(["REJECTED", "BLOCKED", "ERROR", "CANCELLED", "DISABLED", "OFFLINE", "SUSPENDED", "OUT_OF_STOCK", "HIDDEN"]);
+
+export function statusTone(code: string | null | undefined): "ok" | "warn" | "bad" | "info" {
+  const key = String(code ?? "").toUpperCase();
+  if (POSITIVE.has(key)) return "ok";
+  if (BAD.has(key)) return "bad";
+  if (WARN.has(key)) return "warn";
+  return "info";
+}
+
+/** Admin UI language. Architecture is multilingual; Russian is the live language. */
+export const ADMIN_LANG: Lang = "ru";
+
+type Pack = Record<Lang, string>;
+
+export const ADMIN: Record<string, Pack> = {
+  brand: { ru: "PUZZLECANDY", uz: "PUZZLECANDY", en: "PUZZLECANDY" },
+  brand_panel: { ru: "PUZZLECANDY — ПАНЕЛЬ УПРАВЛЕНИЯ", uz: "PUZZLECANDY — BOSHQARUV", en: "PUZZLECANDY — CONTROL" },
+  brand_title: { ru: "PUZZLECANDY — Админ-панель", uz: "PUZZLECANDY — Admin", en: "PUZZLECANDY — Admin" },
+
+  nav_dashboard: { ru: "Главная", uz: "Bosh sahifa", en: "Home" },
+  nav_users: { ru: "Пользователи", uz: "Foydalanuvchilar", en: "Users" },
+  nav_products: { ru: "Товары", uz: "Mahsulotlar", en: "Products" },
+  nav_categories: { ru: "Категории", uz: "Kategoriyalar", en: "Categories" },
+  nav_orders: { ru: "Заказы", uz: "Buyurtmalar", en: "Orders" },
+  nav_payments: { ru: "Платежи", uz: "To'lovlar", en: "Payments" },
+  nav_transactions: { ru: "Финансовые операции", uz: "Moliyaviy operatsiyalar", en: "Ledger" },
+  nav_couriers: { ru: "Курьеры", uz: "Kuryerlar", en: "Couriers" },
+  nav_map: { ru: "Карта", uz: "Xarita", en: "Map" },
+  nav_reviews: { ru: "Отзывы", uz: "Sharhlar", en: "Reviews" },
+  nav_support: { ru: "Поддержка", uz: "Yordam", en: "Support" },
+  nav_jobs: { ru: "Работа", uz: "Ish", en: "Jobs" },
+  nav_analytics: { ru: "Аналитика", uz: "Tahlil", en: "Analytics" },
+  nav_notifications: { ru: "Уведомления", uz: "Bildirishnomalar", en: "Alerts" },
+  nav_bots: { ru: "Telegram-боты", uz: "Telegram-botlar", en: "Telegram bots" },
+  nav_settings: { ru: "Настройки", uz: "Sozlamalar", en: "Settings" },
+  nav_audit: { ru: "Журнал действий", uz: "Harakatlar jurnali", en: "Audit log" },
+  nav_errors: { ru: "Центр ошибок", uz: "Xatolar markazi", en: "Error center" },
+  nav_roles: { ru: "Администраторы и права", uz: "Adminlar va huquqlar", en: "Admins & roles" },
+
+  search_placeholder: { ru: "Поиск: @username, Telegram ID, ORD-, PAY-", uz: "Qidiruv", en: "Search users, ORD-, PAY-" },
+  cmd_placeholder: { ru: "Быстрый поиск и действия…", uz: "Tezkor qidiruv…", en: "Quick search and actions…" },
+  cmd_hint: { ru: "Ctrl + K", uz: "Ctrl + K", en: "Ctrl + K" },
+  logout: { ru: "Выйти", uz: "Chiqish", en: "Log out" },
+  save: { ru: "Сохранить", uz: "Saqlash", en: "Save" },
+  cancel: { ru: "Отмена", uz: "Bekor qilish", en: "Cancel" },
+  delete: { ru: "Удалить", uz: "O‘chirish", en: "Delete" },
+  edit: { ru: "Изменить", uz: "Tahrirlash", en: "Edit" },
+  create: { ru: "Создать", uz: "Yaratish", en: "Create" },
+  search: { ru: "Поиск", uz: "Qidiruv", en: "Search" },
+  filter: { ru: "Фильтр", uz: "Filtr", en: "Filter" },
+  export: { ru: "Экспорт", uz: "Eksport", en: "Export" },
+  open: { ru: "Открыть", uz: "Ochish", en: "Open" },
+  close: { ru: "Закрыть", uz: "Yopish", en: "Close" },
+  back: { ru: "Назад", uz: "Orqaga", en: "Back" },
+  more: { ru: "Ещё", uz: "Yana", en: "More" },
+  all: { ru: "Все", uz: "Barchasi", en: "All" },
+  confirm: { ru: "Подтвердить", uz: "Tasdiqlash", en: "Confirm" },
+  reject: { ru: "Отклонить", uz: "Rad etish", en: "Reject" },
+  assign: { ru: "Назначить", uz: "Tayinlash", en: "Assign" },
+  view: { ru: "Просмотр", uz: "Ko‘rish", en: "View" },
+  hide: { ru: "Скрыть", uz: "Yashirish", en: "Hide" },
+  show: { ru: "Показать", uz: "Ko‘rsatish", en: "Show" },
+  write: { ru: "Написать", uz: "Yozish", en: "Message" },
+  balance: { ru: "Баланс", uz: "Balans", en: "Balance" },
+  orders: { ru: "Заказы", uz: "Buyurtmalar", en: "Orders" },
+  loading: { ru: "Загрузка…", uz: "Yuklanmoqda…", en: "Loading…" },
+  saved: { ru: "Сохранено", uz: "Saqlandi", en: "Saved" },
+  saving: { ru: "Сохраняется…", uz: "Saqlanmoqda…", en: "Saving…" },
+  empty: { ru: "Пока пусто", uz: "Hozircha bo‘sh", en: "Nothing here yet" },
+  error: { ru: "Ошибка", uz: "Xato", en: "Error" },
+  retry: { ru: "Повторить", uz: "Qayta urinish", en: "Retry" },
+  menu: { ru: "Меню", uz: "Menyu", en: "Menu" },
+  sound_on: { ru: "Звук включён", uz: "Ovoz yoqilgan", en: "Sound on" },
+  sound_off: { ru: "Звук выключен", uz: "Ovoz o‘chiq", en: "Sound off" },
+
+  dash_kicker: { ru: "ЦЕНТР УПРАВЛЕНИЯ", uz: "BOSHQARUV", en: "COMMAND" },
+  dash_title: { ru: "Главная", uz: "Bosh sahifa", en: "Dashboard" },
+  kpi_revenue: { ru: "Выручка", uz: "Tushum", en: "Revenue" },
+  kpi_orders: { ru: "Заказы", uz: "Buyurtmalar", en: "Orders" },
+  kpi_users: { ru: "Пользователи", uz: "Foydalanuvchilar", en: "Users" },
+  kpi_pending_pay: { ru: "Платежи на проверке", uz: "Tekshiruvdagi to‘lovlar", en: "Pending payments" },
+  kpi_pending_del: { ru: "Доставки на проверке", uz: "Tekshiruvdagi yetkazishlar", en: "Delivery review" },
+  kpi_active: { ru: "Активны за 24ч", uz: "24 soatda faol", en: "Active 24h" },
+  kpi_new: { ru: "Новые сегодня", uz: "Bugun yangi", en: "New today" },
+  kpi_orders_today: { ru: "Заказы сегодня", uz: "Bugungi buyurtmalar", en: "Orders today" },
+  kpi_skus: { ru: "Товары в витрине", uz: "Vitrinadagi mahsulotlar", en: "Live SKUs" },
+  kpi_oos: { ru: "Нет в наличии", uz: "Ombarda yo‘q", en: "Out of stock" },
+  chart_sales: { ru: "Продажи", uz: "Sotuvlar", en: "Sales" },
+  chart_deposits: { ru: "Пополнения", uz: "To‘ldirishlar", en: "Deposits" },
+  chart_users: { ru: "Новые пользователи", uz: "Yangi foydalanuvchilar", en: "New users" },
+  chart_flow: { ru: "14 дней", uz: "14 kun", en: "14-day flow" },
+  attention: { ru: "Требует внимания", uz: "E'tibor talab qiladi", en: "Needs attention" },
+  attention_empty: { ru: "Срочных задач нет — система спокойна.", uz: "Shoshilinch vazifa yo‘q.", en: "Nothing urgent." },
+  quick_actions: { ru: "Быстрые действия", uz: "Tezkor amallar", en: "Quick actions" },
+  qa_product: { ru: "➕ Добавить товар", uz: "➕ Mahsulot qo‘shish", en: "➕ Add product" },
+  qa_payments: { ru: "💳 Проверить платежи", uz: "💳 To‘lovlarni tekshirish", en: "💳 Review payments" },
+  qa_balance: { ru: "💰 Изменить баланс", uz: "💰 Balansni o‘zgartirish", en: "💰 Adjust balance" },
+  qa_order: { ru: "🛒 Найти заказ", uz: "🛒 Buyurtma topish", en: "🛒 Find order" },
+  qa_courier: { ru: "🚚 Назначить курьера", uz: "🚚 Kuryer tayinlash", en: "🚚 Assign courier" },
+  qa_user: { ru: "👤 Найти пользователя", uz: "👤 Foydalanuvchi topish", en: "👤 Find user" },
+  qa_alerts: { ru: "🔔 Открыть уведомления", uz: "🔔 Bildirishnomalar", en: "🔔 Open alerts" },
+  feed: { ru: "Лента событий", uz: "Hodisalar", en: "Event feed" },
+  health: { ru: "Состояние системы", uz: "Tizim holati", en: "System health" },
+  health_ok: { ru: "Работает", uz: "Ishlamoqda", en: "Online" },
+  health_load: { ru: "Нагрузка", uz: "Yuk", en: "Busy" },
+  health_err: { ru: "Ошибка", uz: "Xato", en: "Error" },
+  att_pay: { ru: "{n} платежей на проверке", uz: "{n} to‘lov tekshiruvda", en: "{n} payments pending" },
+  att_del: { ru: "{n} доставок на проверке", uz: "{n} yetkazish tekshiruvda", en: "{n} deliveries pending" },
+  att_sup: { ru: "{n} обращений без ответа", uz: "{n} javobsiz murojaat", en: "{n} unanswered tickets" },
+  att_bot: { ru: "{n} Telegram-бот отключён", uz: "{n} bot o‘chiq", en: "{n} bots offline" },
+  att_err: { ru: "{n} системные ошибки", uz: "{n} tizim xatosi", en: "{n} system errors" },
+
+  users_kicker: { ru: "КЛИЕНТЫ", uz: "MIJOZLAR", en: "PEOPLE" },
+  users_title: { ru: "Пользователи", uz: "Foydalanuvchilar", en: "Users" },
+  col_tg: { ru: "Telegram ID", uz: "Telegram ID", en: "TG ID" },
+  col_name: { ru: "Имя", uz: "Ism", en: "Name" },
+  col_buys: { ru: "Покупок", uz: "Xaridlar", en: "Buys" },
+  col_disc: { ru: "Скидка", uz: "Chegirma", en: "Discount" },
+  col_status: { ru: "Статус", uz: "Holat", en: "Status" },
+  add_balance: { ru: "Начислить", uz: "Qo‘shish", en: "Credit" },
+  debit: { ru: "Списать", uz: "Yechtirish", en: "Debit" },
+  block: { ru: "Заблокировать", uz: "Bloklash", en: "Block" },
+  unblock: { ru: "Разблокировать", uz: "Blokdan chiqarish", en: "Unblock" },
+  amount_usd: { ru: "Сумма, USD", uz: "Summa, USD", en: "Amount USD" },
+  reason: { ru: "Причина", uz: "Sabab", en: "Reason" },
+  confirm_debit: { ru: "Вы подтверждаете списание {amount}?", uz: "{amount} yechasizmi?", en: "Confirm debit of {amount}?" },
+  confirm_credit: { ru: "Начислить {amount} на баланс?", uz: "{amount} qo‘shilsinmi?", en: "Credit {amount}?" },
+  overview: { ru: "Обзор", uz: "Umumiy", en: "Overview" },
+  ledger: { ru: "Операции", uz: "Operatsiyalar", en: "Ledger" },
+  tech: { ru: "Техническая информация", uz: "Texnik ma'lumot", en: "Technical" },
+
+  products_kicker: { ru: "КАТАЛОГ", uz: "KATALOG", en: "CATALOG" },
+  products_title: { ru: "Товары", uz: "Mahsulotlar", en: "Products" },
+  field_name: { ru: "Название", uz: "Nomi", en: "Name" },
+  field_price: { ru: "Цена, USD", uz: "Narx, USD", en: "Price USD" },
+  field_stock: { ru: "Количество", uz: "Soni", en: "Stock" },
+  field_category: { ru: "Категория", uz: "Kategoriya", en: "Category" },
+  field_photo: { ru: "Фото", uz: "Foto", en: "Photo" },
+  field_desc: { ru: "Описание", uz: "Tavsif", en: "Description" },
+  add_product: { ru: "Добавить товар", uz: "Mahsulot qo‘shish", en: "Add product" },
+  extra_params: { ru: "Дополнительные параметры", uz: "Qo‘shimcha", en: "Advanced" },
+  confirm_delete_product: { ru: "Вы действительно хотите удалить товар?", uz: "Mahsulot o‘chirilsinmi?", en: "Delete this product?" },
+  stock_n: { ru: "Остаток: {n}", uz: "Qoldiq: {n}", en: "Stock {n}" },
+  live: { ru: "В витрине", uz: "Vitrinada", en: "Live" },
+  hidden_tag: { ru: "Скрыт", uz: "Yashirin", en: "Hidden" },
+  bulk: { ru: "Массовые действия", uz: "Ommaviy amallar", en: "Bulk actions" },
+  bulk_hide: { ru: "Скрыть выбранные", uz: "Yashirish", en: "Hide selected" },
+  bulk_show: { ru: "Активировать", uz: "Faollashtirish", en: "Activate" },
+
+  cats_kicker: { ru: "КЛАССИФИКАЦИЯ", uz: "TASNIF", en: "TAXONOMY" },
+  cats_title: { ru: "Категории", uz: "Kategoriyalar", en: "Categories" },
+  field_slug: { ru: "Код", uz: "Kod", en: "Code" },
+  add_category: { ru: "Добавить категорию", uz: "Kategoriya qo‘shish", en: "Add category" },
+
+  orders_kicker: { ru: "ИСПОЛНЕНИЕ", uz: "BAJARISH", en: "FULFILLMENT" },
+  orders_title: { ru: "Заказы", uz: "Buyurtmalar", en: "Orders" },
+  col_code: { ru: "Номер", uz: "Raqam", en: "Code" },
+  col_user: { ru: "Клиент", uz: "Mijoz", en: "User" },
+  col_product: { ru: "Товар", uz: "Mahsulot", en: "Product" },
+  col_total: { ru: "Сумма", uz: "Summa", en: "Total" },
+  pick_courier: { ru: "Курьер…", uz: "Kuryer…", en: "Courier…" },
+  confirm_cancel_order: { ru: "Отменить заказ? Это нельзя просто откатить.", uz: "Buyurtma bekor qilinsinmi?", en: "Cancel this order?" },
+
+  pay_kicker: { ru: "ФИНАНСЫ", uz: "MOLIYA", en: "FINANCE" },
+  pay_title: { ru: "Платежи", uz: "To‘lovlar", en: "Payments" },
+  no_shot: { ru: "Скриншот ещё не получен", uz: "Skrinshot yo‘q", en: "No screenshot yet" },
+  reject_reason: { ru: "Причина отклонения", uz: "Rad etish sababi", en: "Reject reason" },
+  confirm_approve_pay: { ru: "Подтвердить платёж и зачислить средства?", uz: "To‘lov tasdiqlansinmi?", en: "Credit this payment?" },
+  pay_locked: { ru: "Решение зафиксировано. Повторные нажатия баланс не меняют.", uz: "Qaror qayd etilgan.", en: "Decision locked." },
+  pay_ok: { ru: "Платёж подтверждён. Баланс увеличен на {amount}.", uz: "To‘lov tasdiqlandi. +{amount}", en: "Payment approved. Balance +{amount}." },
+  waiting: { ru: "Ожидает", uz: "Kutilmoqda", en: "Waiting" },
+
+  tx_kicker: { ru: "ЛЕДЖЕР", uz: "REESTR", en: "LEDGER" },
+  tx_title: { ru: "Финансовые операции", uz: "Moliyaviy operatsiyalar", en: "Transactions" },
+  col_type: { ru: "Тип", uz: "Tur", en: "Type" },
+  col_amount: { ru: "Сумма", uz: "Summa", en: "Amount" },
+  col_before: { ru: "До", uz: "Oldin", en: "Before" },
+  col_after: { ru: "После", uz: "Keyin", en: "After" },
+
+  cour_kicker: { ru: "ЛОГИСТИКА", uz: "LOGISTIKA", en: "LOGISTICS" },
+  cour_title: { ru: "Курьеры", uz: "Kuryerlar", en: "Couriers" },
+  activate: { ru: "Активировать", uz: "Faollashtirish", en: "Activate" },
+  suspend: { ru: "Приостановить", uz: "To‘xtatish", en: "Suspend" },
+  delivery_review: { ru: "Проверка доставок", uz: "Yetkazish tekshiruvi", en: "Delivery review" },
+  no_pin: { ru: "Нет локации", uz: "Lokatsiya yo‘q", en: "No pin" },
+
+  map_kicker: { ru: "ГЕО", uz: "GEO", en: "GEO" },
+  map_title: { ru: "Карта", uz: "Xarita", en: "Live map" },
+  no_pins: { ru: "Пинов пока нет. Курьер должен отправить локацию.", uz: "Pin yo‘q.", en: "No courier pins yet." },
+
+  rev_kicker: { ru: "РЕПУТАЦИЯ", uz: "REYTING", en: "SOCIAL" },
+  rev_title: { ru: "Отзывы", uz: "Sharhlar", en: "Reviews" },
+
+  sup_kicker: { ru: "ВХОДЯЩИЕ", uz: "KIRUVCHI", en: "INBOX" },
+  sup_title: { ru: "Поддержка", uz: "Yordam", en: "Support" },
+  reply: { ru: "Ответить", uz: "Javob", en: "Reply" },
+  close_ticket: { ru: "Закрыть обращение", uz: "Yopish", en: "Close ticket" },
+
+  jobs_kicker: { ru: "НАЙМ", uz: "ISH", en: "HIRING" },
+  jobs_title: { ru: "Работа", uz: "Ish", en: "Jobs" },
+  field_title: { ru: "Название", uz: "Sarlavha", en: "Title" },
+  field_pay: { ru: "Оплата", uz: "To‘lov", en: "Pay" },
+  create_job: { ru: "Создать вакансию", uz: "Vakansiya", en: "Create job" },
+  applications: { ru: "Заявки", uz: "Arizalar", en: "Applications" },
+
+  an_kicker: { ru: "АНАЛИТИКА", uz: "TAHLIL", en: "INSIGHTS" },
+  an_title: { ru: "Аналитика", uz: "Tahlil", en: "Analytics" },
+  aov: { ru: "Средний чек", uz: "O‘rtacha chek", en: "AOV" },
+
+  ntf_kicker: { ru: "ПУЛЬС", uz: "PULS", en: "PULSE" },
+  ntf_title: { ru: "Уведомления", uz: "Bildirishnomalar", en: "Notifications" },
+  mark_read: { ru: "Отметить прочитанными", uz: "O‘qilgan", en: "Mark read" },
+
+  bots_kicker: { ru: "TELEGRAM", uz: "TELEGRAM", en: "TELEGRAM" },
+  bots_title: { ru: "Telegram", uz: "Telegram", en: "Telegram" },
+  tab_bots: { ru: "Боты", uz: "Botlar", en: "Bots" },
+  tab_accounts: { ru: "Telegram-аккаунты", uz: "Akkountlar", en: "Accounts" },
+  tab_pay: { ru: "Платежи", uz: "To‘lovlar", en: "Payments" },
+  tab_cour: { ru: "Курьеры", uz: "Kuryerlar", en: "Couriers" },
+  tab_sup: { ru: "Поддержка", uz: "Yordam", en: "Support" },
+  tab_ntf: { ru: "Уведомления", uz: "Bildirishnomalar", en: "Alerts" },
+  connect_bot: { ru: "Подключить бота", uz: "Bot ulash", en: "Connect bot" },
+  connect_account: { ru: "Подключить аккаунт", uz: "Akkount ulash", en: "Connect account" },
+  bot_name: { ru: "Название", uz: "Nomi", en: "Name" },
+  bot_purpose: { ru: "Назначение", uz: "Maqsad", en: "Purpose" },
+  bot_token: { ru: "Telegram Bot Token", uz: "Telegram Bot Token", en: "Telegram Bot Token" },
+  check_connection: { ru: "Проверить подключение", uz: "Ulanishni tekshirish", en: "Test connection" },
+  save_bot: { ru: "Сохранить бота", uz: "Botni saqlash", en: "Save bot" },
+  bot_ok: { ru: "Бот успешно подключён", uz: "Bot ulandi", en: "Bot connected" },
+  bot_works: { ru: "Работает", uz: "Ishlamoqda", en: "Running" },
+  reconnect: { ru: "Переподключить", uz: "Qayta ulash", en: "Reconnect" },
+  disable: { ru: "Отключить", uz: "O‘chirish", en: "Disable" },
+  check_now: { ru: "Проверить сейчас", uz: "Hozir tekshirish", en: "Check now" },
+  last_check: { ru: "Последняя проверка", uz: "Oxirgi tekshiruv", en: "Last check" },
+  last_update: { ru: "Последний update", uz: "Oxirgi update", en: "Last update" },
+  last_error: { ru: "Последняя ошибка", uz: "Oxirgi xato", en: "Last error" },
+  last_seen: { ru: "Последняя активность", uz: "Oxirgi faollik", en: "Last activity" },
+  reveal: { ru: "Показать", uz: "Ko‘rsatish", en: "Reveal" },
+  hide_secret: { ru: "Скрыть", uz: "Yashirish", en: "Hide" },
+  confirm_delete_bot: { ru: "Удалить бота? Вебхук будет отключён, обработчики остановлены.", uz: "Bot o‘chirilsinmi?", en: "Delete this bot? Webhook will be removed." },
+  purpose_main: { ru: "Основной магазин", uz: "Asosiy do‘kon", en: "Main shop" },
+  purpose_payment: { ru: "Платёжный бот", uz: "To‘lov boti", en: "Payment bot" },
+  purpose_courier: { ru: "Бот курьеров", uz: "Kuryer boti", en: "Courier bot" },
+  purpose_support: { ru: "Бот поддержки", uz: "Yordam boti", en: "Support bot" },
+  purpose_other: { ru: "Другой", uz: "Boshqa", en: "Other" },
+  token_set: { ru: "Токен задан", uz: "Token bor", en: "Token set" },
+  token_sim: { ru: "Симулятор (токен не задан)", uz: "Simulyator", en: "Simulator" },
+  personal_bots: { ru: "Личные боты клиентов", uz: "Mijoz botlari", en: "Customer bots" },
+  acc_purpose_payment: { ru: "Платёжный аккаунт", uz: "To‘lov akkaunti", en: "Payment account" },
+  acc_purpose_operator: { ru: "Оператор", uz: "Operator", en: "Operator" },
+  acc_purpose_courier: { ru: "Курьер", uz: "Kuryer", en: "Courier" },
+  acc_purpose_support: { ru: "Поддержка", uz: "Yordam", en: "Support" },
+  acc_purpose_work: { ru: "Рабочий аккаунт", uz: "Ish akkaunti", en: "Work account" },
+  acc_purpose_other: { ru: "Другой", uz: "Boshqa", en: "Other" },
+  qr_title: { ru: "Подключение Telegram", uz: "Telegram ulash", en: "Connect Telegram" },
+  qr_hint: { ru: "Откройте Telegram → Настройки → Устройства → Подключить устройство", uz: "Telegram → Sozlamalar → Qurilmalar", en: "Telegram → Settings → Devices → Link desktop device" },
+  qr_wait: { ru: "Ожидание авторизации…", uz: "Avtorizatsiya kutilmoqda…", en: "Waiting for authorization…" },
+  qr_ok: { ru: "Успешно подключено", uz: "Muvaffaqiyatli ulandi", en: "Connected" },
+  qr_confirm: { ru: "Я отсканировал код", uz: "Kodni skanerladim", en: "I scanned the code" },
+  phone_login: { ru: "Вход по номеру", uz: "Raqam orqali", en: "Sign in with phone" },
+  phone: { ru: "Номер телефона", uz: "Telefon raqami", en: "Phone number" },
+  send_code: { ru: "Отправить код", uz: "Kod yuborish", en: "Send code" },
+  enter_code: { ru: "Код из Telegram", uz: "Telegram kodi", en: "Telegram code" },
+  enter_2fa: { ru: "Введите пароль двухэтапной аутентификации", uz: "2FA parol", en: "Enter 2FA password" },
+  code_sent: { ru: "Код отправлен. Для этой среды он показан ниже — в продакшене придёт в Telegram.", uz: "Kod yuborildi.", en: "Code sent. Shown below in this environment." },
+  account_ok: { ru: "Telegram-аккаунт подключён", uz: "Akkount ulandi", en: "Account connected" },
+  payment_account: { ru: "Платёжный аккаунт", uz: "To‘lov akkaunti", en: "Payment account" },
+  payment_account_hint: { ru: "Какой Telegram-аккаунт используется для приёма и обработки платёжных подтверждений?", uz: "To‘lov tasdiqlari uchun akkaunt", en: "Which account handles payment confirmations?" },
+  payment_account_on: { ru: "Платёжный аккаунт активирован", uz: "To‘lov akkaunti yoqildi", en: "Payment account activated" },
+  courier_system: { ru: "Система курьеров", uz: "Kuryer tizimi", en: "Courier system" },
+  courier_bot: { ru: "Основной бот курьеров", uz: "Asosiy kuryer boti", en: "Courier bot" },
+  courier_account: { ru: "Рабочий Telegram-аккаунт", uz: "Ishchi akkaunt", en: "Work account" },
+  support_bot: { ru: "Бот поддержки", uz: "Yordam boti", en: "Support bot" },
+  none_selected: { ru: "Не выбран", uz: "Tanlanmagan", en: "Not selected" },
+  apply_routing: { ru: "Применить", uz: "Qo‘llash", en: "Apply" },
+  col_purpose: { ru: "Назначение", uz: "Maqsad", en: "Purpose" },
+  col_connected: { ru: "Подключён", uz: "Ulangan", en: "Linked" },
+  st_connected: { ru: "Подключён", uz: "Ulangan", en: "Connected" },
+  st_online: { ru: "Онлайн", uz: "Onlayn", en: "Online" },
+  st_attention: { ru: "Требует внимания", uz: "E'tibor kerak", en: "Needs attention" },
+  st_error: { ru: "Ошибка", uz: "Xato", en: "Error" },
+  st_off: { ru: "Отключён", uz: "O‘chiq", en: "Offline" },
+  st_checking: { ru: "Проверка", uz: "Tekshiruv", en: "Checking" },
+  st_need_auth: { ru: "Требуется авторизация", uz: "Avtorizatsiya kerak", en: "Auth required" },
+
+  set_kicker: { ru: "КОНФИГУРАЦИЯ", uz: "SOZLAMALAR", en: "CONFIG" },
+  set_title: { ru: "Настройки", uz: "Sozlamalar", en: "Settings" },
+  min_dep: { ru: "Мин. пополнение, USD", uz: "Min. to‘ldirish", en: "Min deposit USD" },
+  max_dep: { ru: "Макс. пополнение, USD", uz: "Maks. to‘ldirish", en: "Max deposit USD" },
+  referral: { ru: "Реферальный %", uz: "Referal %", en: "Referral %" },
+  uzs_rate: { ru: "UZS за 1 USD", uz: "1 USD = UZS", en: "UZS per USD" },
+  rules: { ru: "Правила", uz: "Qoidalar", en: "Rules" },
+  info: { ru: "Информация", uz: "Ma'lumot", en: "Info" },
+  save_settings: { ru: "Сохранить настройки", uz: "Sozlamalarni saqlash", en: "Save settings" },
+
+  aud_kicker: { ru: "СЛЕД", uz: "IZ", en: "TRAIL" },
+  aud_title: { ru: "Журнал действий", uz: "Harakatlar jurnali", en: "Audit log" },
+
+  err_kicker: { ru: "ЗДОРОВЬЕ", uz: "SOG‘LIQ", en: "HEALTH" },
+  err_title: { ru: "Центр ошибок", uz: "Xatolar markazi", en: "Error center" },
+  no_errors: { ru: "Ошибок не зафиксировано.", uz: "Xato yo‘q.", en: "No errors recorded." },
+
+  roles_kicker: { ru: "ДОСТУП", uz: "KIRISH", en: "ACCESS" },
+  roles_title: { ru: "Администраторы и права", uz: "Huquqlar", en: "Roles" },
+
+  search_kicker: { ru: "ПОИСК", uz: "QIDIRUV", en: "SEARCH" },
+  unknown_module: { ru: "Неизвестный раздел", uz: "Noma'lum bo‘lim", en: "Unknown module" },
+  no_seat: { ru: "Нет доступа оператора", uz: "Operator ruxsati yo‘q", en: "No operator seat" },
+  no_seat_copy: {
+    ru: "Этот аккаунт не в списке администраторов. Первый вход в пустую систему становится супер-админом.",
+    uz: "Bu akkaunt admin ro‘yxatida yo‘q.",
+    en: "This account is not in the admin roster. The first sign-in on an empty roster becomes SUPER_ADMIN.",
+  },
+
+  login_kicker: { ru: "PUZZLECANDY / ВХОД", uz: "PUZZLECANDY / KIRISH", en: "PUZZLECANDY / ACCESS" },
+  login_title: { ru: "Вход в панель", uz: "Panelga kirish", en: "Command login" },
+  login_copy: { ru: "Первый вошедший оператор становится супер-админом.", uz: "Birinchi operator SUPER_ADMIN bo‘ladi.", en: "First signed-in operator becomes SUPER_ADMIN." },
+  email: { ru: "Электронная почта", uz: "Email", en: "Email" },
+  password: { ru: "Пароль", uz: "Parol", en: "Password" },
+  sign_in: { ru: "Войти", uz: "Kirish", en: "Sign in" },
+  create_admin: { ru: "Создать администратора", uz: "Admin yaratish", en: "Create admin" },
+  have_account: { ru: "Уже есть аккаунт? Войти", uz: "Akkount bormi? Kirish", en: "Have an account? Sign in" },
+  create_first: { ru: "Создать первый аккаунт администратора", uz: "Birinchi admin", en: "Create first admin account" },
+  continue_with: { ru: "Продолжить через {p}", uz: "{p} orqali", en: "Continue with {p}" },
+  signin_disabled: { ru: "Вход отключён.", uz: "Kirish o‘chiq.", en: "Sign-in is disabled." },
+  login_failed: { ru: "Не удалось войти", uz: "Kirib bo‘lmadi", en: "Sign-in failed" },
+
+  land_kicker: { ru: "ПРЕМИАЛЬНАЯ КОНДИТЕРСКАЯ", uz: "PREMIUM KONFETA", en: "PREMIUM LEGAL CONFECTIONERY" },
+  land_title: { ru: "Магазин. Касса. Курьеры. Одна панель управления.", uz: "Do‘kon. Kassa. Kuryerlar.", en: "Shop bot. Payment desk. Courier net. One control room." },
+  land_copy: {
+    ru: "Баланс меняется только после подтверждения скриншота оператором. Товары появляются в витрине только после публикации. Курьеры закрывают задачи фото и точкой на карте. Каждое движение денег пишется в леджер.",
+    uz: "Balans faqat operator tasdiqlagach o‘zgaradi.",
+    en: "Balances move only after an operator confirms a screenshot.",
+  },
+  land_shop: { ru: "Магазин", uz: "Do‘kon", en: "Shop" },
+  land_shop_copy: { ru: "Витрина, баланс, заказы и поддержка — клиентский контур.", uz: "Vitrina, balans, buyurtmalar.", en: "Catalog, balance, orders, support." },
+  land_pay: { ru: "Касса", uz: "Kassa", en: "Cash desk" },
+  land_pay_copy: { ru: "Заявки на пополнение и скриншоты оплаты.", uz: "To‘lov arizalari.", en: "Deposit requests and receipts." },
+  land_cour: { ru: "Курьер", uz: "Kuryer", en: "Courier" },
+  land_cour_copy: { ru: "Принять задачу, отправить точку, фотоотчёт.", uz: "Vazifa, lokatsiya, foto.", en: "Accept tasks, drop pins, send photos." },
+  land_admin: { ru: "Админ-панель", uz: "Admin panel", en: "Admin" },
+  land_admin_copy: { ru: "Подтверждать деньги, публиковать товары, вести карту.", uz: "Pul, mahsulot, xarita.", en: "Approve money, publish goods, run the map." },
+  operator_login: { ru: "Вход оператора", uz: "Operator kirishi", en: "Operator login" },
+  deals: { ru: "Сделок", uz: "Savdolar", en: "Deals" },
+
+  cmd_find_user: { ru: "Найти пользователя", uz: "Foydalanuvchi", en: "Find user" },
+  cmd_create_product: { ru: "Создать товар", uz: "Mahsulot", en: "Create product" },
+  cmd_pending_pay: { ru: "Показать ожидающие платежи", uz: "Kutilayotgan to‘lovlar", en: "Pending payments" },
+  cmd_find_order: { ru: "Найти заказ", uz: "Buyurtma", en: "Find order" },
+  cmd_couriers: { ru: "Открыть курьеров", uz: "Kuryerlar", en: "Open couriers" },
+  cmd_map: { ru: "Открыть карту", uz: "Xarita", en: "Open map" },
+  cmd_balance: { ru: "Изменить баланс", uz: "Balans", en: "Change balance" },
+
+  hours: { ru: "Часы работы", uz: "Ish vaqti", en: "Hours" },
+  col_username: { ru: "Username", uz: "Username", en: "Username" },
+  col_id: { ru: "ID", uz: "ID", en: "ID" },
+  sla: { ru: "Ожидает", uz: "Kutilmoqda", en: "Waiting" },
+  save_filter: { ru: "Сохранить фильтр", uz: "Filtrni saqlash", en: "Save filter" },
+  saved_filters: { ru: "Сохранённые фильтры", uz: "Saqlangan filtrlar", en: "Saved filters" },
+  filter_pending_pay: { ru: "Платежи на проверке", uz: "Tekshiruvdagi to‘lovlar", en: "Pending payments" },
+  filter_name: { ru: "Название фильтра", uz: "Filtr nomi", en: "Filter name" },
+  skip_2fa: { ru: "Пропустить (2FA не включена)", uz: "O‘tkazib yuborish", en: "Skip (no 2FA)" },
+  health_backend: { ru: "Сервер", uz: "Server", en: "Backend" },
+  health_db: { ru: "База данных", uz: "Ma'lumotlar bazasi", en: "Database" },
+  health_redis: { ru: "Кэш", uz: "Kesh", en: "Cache" },
+  health_worker: { ru: "Фоновые задачи", uz: "Fon vazifalar", en: "Worker" },
+  health_ws: { ru: "Realtime", uz: "Realtime", en: "Realtime" },
+  health_main: { ru: "Основной бот", uz: "Asosiy bot", en: "Main bot" },
+  health_paybot: { ru: "Платёжный бот", uz: "To‘lov boti", en: "Payment bot" },
+  health_courbot: { ru: "Бот курьеров", uz: "Kuryer boti", en: "Courier bot" },
+  ntf_auto_1: { ru: "Автопроверка Telegram выполняется при каждом «Проверить сейчас» и при сохранении бота.", uz: "Telegram avtomatik tekshiriladi.", en: "Telegram is checked on save and on “Check now”." },
+  ntf_auto_2: { ru: "Недоступный бот попадает в «Требует внимания» на главной и в центр ошибок.", uz: "Oflayn bot e'tibor blokiga tushadi.", en: "An offline bot appears in Needs attention and the error center." },
+  ntf_auto_3: { ru: "Сессии аккаунтов не показываются в интерфейсе и не пишутся в обычные логи.", uz: "Session ma'lumotlari ko‘rinmaydi.", en: "Account sessions are never shown in the UI or ordinary logs." },
+  land_k_shop: { ru: "МАГАЗИН", uz: "DO‘KON", en: "SHOP" },
+  land_k_pay: { ru: "КАССА", uz: "KASSA", en: "PAY" },
+  land_k_cour: { ru: "КУРЬЕР", uz: "KURYER", en: "COURIER" },
+  land_k_admin: { ru: "АДМИНКА", uz: "ADMIN", en: "ADMIN" },
+  back_home: { ru: "Назад", uz: "Orqaga", en: "Back" },
+  tg_online: { ru: "в сети", uz: "onlayn", en: "online" },
+  tg_connecting: { ru: "подключение…", uz: "ulanmoqda…", en: "connecting…" },
+  tg_message: { ru: "Сообщение", uz: "Xabar", en: "Message" },
+  tg_shot: { ru: "📷 скриншот", uz: "📷 skrinshot", en: "📷 screenshot" },
+  tg_loc: { ru: "📍 локация", uz: "📍 lokatsiya", en: "📍 location" },
+  signing_out: { ru: "Выходим…", uz: "Chiqilmoqda…", en: "Signing out…" },
+  evt_PAYMENT_PENDING: { ru: "Новый платёж", uz: "Yangi to‘lov", en: "New payment" },
+  evt_NEW_ORDER: { ru: "Новый заказ", uz: "Yangi buyurtma", en: "New order" },
+  evt_NEW_SUPPORT: { ru: "Новое обращение", uz: "Yangi murojaat", en: "New ticket" },
+  evt_SYSTEM_ERROR: { ru: "Системная ошибка", uz: "Tizim xatosi", en: "System error" },
+  evt_COURIER_REPORT: { ru: "Отчёт курьера", uz: "Kuryer hisobot", en: "Courier report" },
+  evt_NEW_USER: { ru: "Новый пользователь", uz: "Yangi foydalanuvchi", en: "New user" },
+  evt_JOB_APPLICATION: { ru: "Заявка на работу", uz: "Ish arizasi", en: "Job application" },
+  evt_COURIER_LOCATION: { ru: "Локация курьера", uz: "Kuryer lokatsiyasi", en: "Courier location" },
+  set_telegram: { ru: "Telegram", uz: "Telegram", en: "Telegram" },
+  set_telegram_copy: { ru: "Боты, аккаунты, платежи, курьеры, поддержка и уведомления — в одном месте.", uz: "Botlar, akkauntlar va marshrutlar.", en: "Bots, accounts and routing in one place." },
+  reminder_pay: { ru: "Напоминание о платеже, мин.", uz: "To‘lov eslatmasi, daq.", en: "Payment reminder, min" },
+  reminder_del: { ru: "Напоминание о доставке, мин.", uz: "Yetkazish eslatmasi, daq.", en: "Delivery reminder, min" },
+  reminder_sup: { ru: "Напоминание о поддержке, мин.", uz: "Yordam eslatmasi, daq.", en: "Support reminder, min" },
+};
+
+const STATUS_RU: Record<string, Pack> = {
+  PENDING: { ru: "На проверке", uz: "Tekshiruvda", en: "Pending" },
+  APPROVED: { ru: "Подтверждено", uz: "Tasdiqlangan", en: "Approved" },
+  REJECTED: { ru: "Отклонено", uz: "Rad etilgan", en: "Rejected" },
+  NEW: { ru: "Новый", uz: "Yangi", en: "New" },
+  PAID: { ru: "Оплачен", uz: "To‘langan", en: "Paid" },
+  PROCESSING: { ru: "Обрабатывается", uz: "Qayta ishlanmoqda", en: "Processing" },
+  PREPARING: { ru: "Подготавливается", uz: "Tayyorlanmoqda", en: "Preparing" },
+  COURIER_ASSIGNED: { ru: "Курьер назначен", uz: "Kuryer tayinlangan", en: "Courier assigned" },
+  IN_DELIVERY: { ru: "В доставке", uz: "Yetkazilmoqda", en: "In delivery" },
+  DELIVERED: { ru: "Доставлен", uz: "Yetkazilgan", en: "Delivered" },
+  COMPLETED: { ru: "Завершён", uz: "Yakunlangan", en: "Completed" },
+  CANCELLED: { ru: "Отменён", uz: "Bekor qilingan", en: "Cancelled" },
+  REFUNDED: { ru: "Возврат", uz: "Qaytarilgan", en: "Refunded" },
+  OUT_OF_STOCK: { ru: "Нет в наличии", uz: "Ombarda yo‘q", en: "Out of stock" },
+  ACTIVE: { ru: "Активен", uz: "Faol", en: "Active" },
+  HIDDEN: { ru: "Скрыт", uz: "Yashirin", en: "Hidden" },
+  BLOCKED: { ru: "Заблокирован", uz: "Bloklangan", en: "Blocked" },
+  VIP: { ru: "VIP", uz: "VIP", en: "VIP" },
+  DRAFT: { ru: "Черновик", uz: "Qoralama", en: "Draft" },
+  ARCHIVED: { ru: "Архив", uz: "Arxiv", en: "Archived" },
+  ONLINE: { ru: "Онлайн", uz: "Onlayn", en: "Online" },
+  OFFLINE: { ru: "Оффлайн", uz: "Oflayn", en: "Offline" },
+  SUSPENDED: { ru: "Приостановлен", uz: "To‘xtatilgan", en: "Suspended" },
+  PENDING_REVIEW: { ru: "На проверке", uz: "Tekshiruvda", en: "Pending review" },
+  VISIBLE: { ru: "Виден", uz: "Ko‘rinadi", en: "Visible" },
+  OPEN: { ru: "Открыто", uz: "Ochiq", en: "Open" },
+  CLOSED: { ru: "Закрыто", uz: "Yopiq", en: "Closed" },
+  WAITING: { ru: "Ожидает", uz: "Kutilmoqda", en: "Waiting" },
+  ANSWERED: { ru: "Отвечено", uz: "Javob berilgan", en: "Answered" },
+  CONTACTED: { ru: "Связались", uz: "Aloqa qilindi", en: "Contacted" },
+  CONNECTED: { ru: "Подключён", uz: "Ulangan", en: "Connected" },
+  DISABLED: { ru: "Отключён", uz: "O‘chiq", en: "Disabled" },
+  ERROR: { ru: "Ошибка", uz: "Xato", en: "Error" },
+  CHECKING: { ru: "Проверка", uz: "Tekshiruv", en: "Checking" },
+  NEED_AUTH: { ru: "Требуется авторизация", uz: "Avtorizatsiya kerak", en: "Auth required" },
+  IDLE: { ru: "Свободен", uz: "Bo‘sh", en: "Idle" },
+  BUSY: { ru: "Занят", uz: "Band", en: "Busy" },
+  SUBMITTED: { ru: "Отправлено", uz: "Yuborilgan", en: "Submitted" },
+  ALL: { ru: "Все", uz: "Barchasi", en: "All" },
+};
+
+const ROLE_RU: Record<string, Pack> = {
+  SUPER_ADMIN: { ru: "Супер-админ", uz: "Super admin", en: "Super admin" },
+  ADMIN: { ru: "Администратор", uz: "Administrator", en: "Admin" },
+  MODERATOR: { ru: "Модератор", uz: "Moderator", en: "Moderator" },
+  SUPPORT: { ru: "Поддержка", uz: "Yordam", en: "Support" },
+  FINANCE: { ru: "Финансист", uz: "Moliyachi", en: "Finance" },
+  COURIER_MANAGER: { ru: "Менеджер курьеров", uz: "Kuryer menejeri", en: "Courier manager" },
+};
+
+const TX_RU: Record<string, Pack> = {
+  MANUAL_DEPOSIT: { ru: "Ручное начисление", uz: "Qo‘lda qo‘shish", en: "Manual credit" },
+  MANUAL_WITHDRAW: { ru: "Ручное списание", uz: "Qo‘lda yechish", en: "Manual debit" },
+  PAYMENT: { ru: "Пополнение", uz: "To‘ldirish", en: "Top-up" },
+  PURCHASE: { ru: "Покупка", uz: "Xarid", en: "Purchase" },
+  REFUND: { ru: "Возврат", uz: "Qaytarish", en: "Refund" },
+  REFERRAL: { ru: "Реферал", uz: "Referal", en: "Referral" },
+};
+
+function pack(p: Pack | undefined, fallback: string): string {
+  if (!p) return fallback;
+  return p[ADMIN_LANG] || p.ru || p.en || fallback;
+}
+
+export function ta(key: string, vars?: Record<string, string | number>): string {
+  let s = pack(ADMIN[key], key);
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
+  }
+  return s;
+}
+
+export function statusLabel(code: string | null | undefined): string {
+  if (!code) return "—";
+  const key = String(code).toUpperCase();
+  return pack(STATUS_RU[key] ?? TX_RU[key], String(code));
+}
+
+export function roleLabel(role: string | null | undefined): string {
+  if (!role) return "—";
+  return pack(ROLE_RU[role], role);
+}
+
+export function purposeLabel(kind: string): string {
+  const map: Record<string, string> = {
+    main: ta("purpose_main"),
+    payment: ta("purpose_payment"),
+    courier: ta("purpose_courier"),
+    support: ta("purpose_support"),
+    other: ta("purpose_other"),
+    operator: ta("acc_purpose_operator"),
+    work: ta("acc_purpose_work"),
+  };
+  return map[kind] ?? kind;
+}
+
+export function eventLabel(type: string | null | undefined): string {
+  if (!type) return "—";
+  const key = `evt_${String(type).toUpperCase()}`;
+  const translated = ta(key);
+  return translated === key ? String(type) : translated;
+}
+
+export function toneClass(code: string | null | undefined): string {
+  const t = statusTone(code);
+  if (t === "ok") return "text-primary";
+  if (t === "bad") return "text-danger";
+  if (t === "warn") return "text-warn";
+  return "text-cyan";
+}
