@@ -5,6 +5,7 @@ import { publish } from "./events";
 import { formatMoney } from "./money";
 import { t } from "./i18n";
 import type { Lang } from "./types";
+import { pushTelegram } from "./telegram-notify";
 
 export async function getSetting<T>(key: string, fallback: T): Promise<T> {
   const db = await getSql();
@@ -22,37 +23,156 @@ export async function setSetting(key: string, value: unknown, adminId?: string):
   );
 }
 
+export type PaymentMethod = {
+  id: string;
+  title: string;
+  kind: string;
+  details: string;
+  comment: string | null;
+  status: string;
+  sort_order: number;
+};
+
+export async function listPaymentMethods() {
+  const db = await getSql();
+  return many<PaymentMethod>(db, `select * from payment_methods order by sort_order, created_at`);
+}
+
+export async function savePaymentMethod(opts: {
+  id?: string;
+  title: string;
+  kind: string;
+  details: string;
+  comment?: string;
+  status?: string;
+  sort?: number;
+  adminId: string;
+}) {
+  const db = await getSql();
+  const id = opts.id ?? nid("pm");
+  if (opts.id) {
+    await db.query(
+      `update payment_methods set title=$2, kind=$3, details=$4, comment=$5, status=coalesce($6,status), sort_order=coalesce($7,sort_order), updated_at=now() where id=$1`,
+      [id, opts.title, opts.kind, opts.details, opts.comment ?? null, opts.status ?? null, opts.sort ?? null],
+    );
+  } else {
+    await db.query(
+      `insert into payment_methods (id, title, kind, details, comment, status, sort_order)
+       values ($1,$2,$3,$4,$5,$6,$7)`,
+      [id, opts.title, opts.kind, opts.details, opts.comment ?? null, opts.status ?? "ACTIVE", opts.sort ?? 0],
+    );
+  }
+  await audit(db, {
+    actorId: opts.adminId,
+    actorType: "ADMIN",
+    action: "payment_method.save",
+    entity: "payment_method",
+    entityId: id,
+  });
+  return { id };
+}
+
+async function activeMethod(): Promise<PaymentMethod | null> {
+  const db = await getSql();
+  return (
+    (await one<PaymentMethod>(
+      db,
+      `select * from payment_methods where status='ACTIVE' order by sort_order, created_at limit 1`,
+    )) ?? null
+  );
+}
+
+async function allocatePayAmount(db: Sql, creditCents: number): Promise<number> {
+  const taken = await many<{ pay_amount_cents: number }>(
+    db,
+    `select pay_amount_cents from payments where status in ('PENDING','SUBMITTED','UNDER_REVIEW')`,
+  );
+  const used = new Set(taken.map((r) => asInt(r.pay_amount_cents)));
+  let pay = creditCents;
+  while (used.has(pay)) pay += 1;
+  return pay;
+}
+
 export async function createPaymentRequest(opts: {
   userId: string;
   amountCents: number;
-}): Promise<{ id: string; publicCode: string; amountCents: number }> {
+  idempotencyKey?: string;
+}): Promise<{
+  id: string;
+  publicCode: string;
+  amountCents: number;
+  payAmountCents: number;
+  method: PaymentMethod | null;
+}> {
   const min = asInt(await getSetting("min_deposit_cents", 500), 500);
   const max = asInt(await getSetting("max_deposit_cents", 100000), 100000);
   if (opts.amountCents < min || opts.amountCents > max) {
     throw new Error(`AMOUNT_RANGE:${min}:${max}`);
   }
   const db = await getSql();
+  if (opts.idempotencyKey) {
+    const existing = await one<{
+      id: string;
+      public_code: string;
+      amount_cents: number;
+      pay_amount_cents: number | null;
+    }>(db, `select id, public_code, amount_cents, pay_amount_cents from payments where idempotency_key=$1`, [
+      opts.idempotencyKey,
+    ]);
+    if (existing) {
+      const method = await activeMethod();
+      return {
+        id: existing.id,
+        publicCode: existing.public_code,
+        amountCents: asInt(existing.amount_cents),
+        payAmountCents: asInt(existing.pay_amount_cents ?? existing.amount_cents),
+        method,
+      };
+    }
+  }
+  const method = await activeMethod();
   const id = nid("pay");
   const code = await nextPublicCode(db, "PAY");
-  await db.query(
-    `insert into payments (id, public_code, user_id, amount_cents, status) values ($1,$2,$3,$4,'PENDING')`,
-    [id, code, opts.userId, opts.amountCents],
-  );
-  await notify({
-    type: "PAYMENT_PENDING",
-    title: `Платёж ${code}`,
-    body: formatMoney(opts.amountCents),
-    entityType: "payment",
-    entityId: id,
-  });
-  publish({
-    type: "PAYMENT_PENDING",
-    title: `Новый платёж ${code}`,
-    body: formatMoney(opts.amountCents),
-    entityType: "payment",
-    entityId: id,
-  });
-  return { id, publicCode: code, amountCents: opts.amountCents };
+  let lastErr: unknown = null;
+  for (let i = 0; i < 25; i += 1) {
+    const payAmount = await allocatePayAmount(db, opts.amountCents + i);
+    try {
+      await db.query(
+        `insert into payments (id, public_code, user_id, amount_cents, pay_amount_cents, status, method_id, requisites_snapshot, idempotency_key, expires_at)
+         values ($1,$2,$3,$4,$5,'PENDING',$6,$7::jsonb,$8, now() + interval '24 hours')`,
+        [
+          id,
+          code,
+          opts.userId,
+          opts.amountCents,
+          payAmount,
+          method?.id ?? null,
+          method ? JSON.stringify(method) : null,
+          opts.idempotencyKey ?? null,
+        ],
+      );
+      await notify({
+        type: "PAYMENT_PENDING",
+        title: `Платёж ${code}`,
+        body: formatMoney(opts.amountCents),
+        entityType: "payment",
+        entityId: id,
+      });
+      publish({
+        type: "PAYMENT_PENDING",
+        title: `Новый платёж ${code}`,
+        body: formatMoney(opts.amountCents),
+        entityType: "payment",
+        entityId: id,
+      });
+      return { id, publicCode: code, amountCents: opts.amountCents, payAmountCents: payAmount, method };
+    } catch (err) {
+      lastErr = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!/unique|duplicate|23505/i.test(msg)) throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("PAY_CREATE_FAILED");
 }
 
 export async function attachPaymentScreenshot(opts: {
@@ -76,11 +196,11 @@ export async function attachPaymentScreenshot(opts: {
       );
   if (!payment) return { ok: false, error: "NOT_FOUND" };
   if (payment.user_id !== opts.userId) return { ok: false, error: "FORBIDDEN" };
-  if (payment.status !== "PENDING") return { ok: false, error: "NOT_PENDING" };
+  if (payment.status !== "PENDING" && payment.status !== "SUBMITTED") return { ok: false, error: "NOT_PENDING" };
   if (!opts.dataUrl && !opts.telegramFileId) return { ok: false, error: "NO_FILE" };
   if (opts.dataUrl && opts.dataUrl.length > 1_800_000) return { ok: false, error: "TOO_LARGE" };
   await db.query(
-    `update payments set screenshot_url=$2, telegram_file_id=$3, updated_at=now() where id=$1`,
+    `update payments set screenshot_url=$2, telegram_file_id=$3, status='SUBMITTED', submitted_at=now(), updated_at=now() where id=$1`,
     [payment.id, opts.dataUrl ?? null, opts.telegramFileId ?? null],
   );
   await audit(db, {
@@ -90,7 +210,33 @@ export async function attachPaymentScreenshot(opts: {
     entity: "payment",
     entityId: payment.id,
   });
+  await notify({
+    type: "PAYMENT_SUBMITTED",
+    title: `Скриншот ${payment.public_code}`,
+    body: "Оплата отправлена на проверку",
+    entityType: "payment",
+    entityId: payment.id,
+  });
+  publish({
+    type: "PAYMENT_SUBMITTED",
+    title: `Скриншот ${payment.public_code}`,
+    body: "Оплата на проверке",
+    entityType: "payment",
+    entityId: payment.id,
+  });
   return { ok: true, publicCode: payment.public_code };
+}
+
+export async function cancelPayment(opts: { paymentId: string; userId: string }) {
+  const db = await getSql();
+  const row = await one<{ id: string }>(
+    db,
+    `update payments set status='CANCELLED', updated_at=now()
+      where id=$1 and user_id=$2 and status in ('PENDING','SUBMITTED')
+      returning id`,
+    [opts.paymentId, opts.userId],
+  );
+  return { ok: Boolean(row) };
 }
 
 export async function reviewPayment(opts: {
@@ -101,12 +247,13 @@ export async function reviewPayment(opts: {
 }): Promise<{ ok: true; duplicate?: boolean; balance?: number } | { ok: false; error: string }> {
   const db = await getSql();
   if (opts.decision === "REJECTED") {
+    if (!opts.reason?.trim()) return { ok: false, error: "REASON_REQUIRED" };
     const updated = await one<{ id: string; user_id: string; public_code: string }>(
       db,
       `update payments set status='REJECTED', reviewed_by=$2, reviewed_at=now(), reject_reason=$3, updated_at=now()
-       where id=$1 and status='PENDING'
+       where id=$1 and status in ('PENDING','SUBMITTED','UNDER_REVIEW')
        returning id, user_id, public_code`,
-      [opts.paymentId, opts.adminId, opts.reason ?? ""],
+      [opts.paymentId, opts.adminId, opts.reason],
     );
     if (!updated) {
       const current = await one<{ status: string }>(db, `select status from payments where id=$1`, [opts.paymentId]);
@@ -121,6 +268,13 @@ export async function reviewPayment(opts: {
       entityId: opts.paymentId,
       newValue: { reason: opts.reason },
     });
+    const user = await one<{ telegram_id: number }>(db, `select telegram_id from shop_users where id=$1`, [updated.user_id]);
+    if (user) {
+      await pushTelegram(
+        asInt(user.telegram_id),
+        `❌ Оплата отклонена.\nЗаявка: ${updated.public_code}\nПричина:\n${opts.reason}`,
+      );
+    }
     return { ok: true };
   }
 
@@ -136,7 +290,7 @@ export async function reviewPayment(opts: {
     `with claimed as (
        update payments
           set status='APPROVED', reviewed_by=$2, reviewed_at=now(), updated_at=now()
-        where id=$1 and status='PENDING'
+        where id=$1 and status in ('PENDING','SUBMITTED','UNDER_REVIEW')
        returning id, user_id, amount_cents, public_code
      ), moved as (
        update shop_users u
@@ -171,6 +325,13 @@ export async function reviewPayment(opts: {
     entityId: claimed.payment_id,
     newValue: { amount: claimed.amount_cents, balance: after },
   });
+  const user = await one<{ telegram_id: number }>(db, `select telegram_id from shop_users where id=$1`, [claimed.user_id]);
+  if (user) {
+    await pushTelegram(
+      asInt(user.telegram_id),
+      `✅ Оплата подтверждена.\nЗаявка: ${claimed.public_code}\nСумма: ${formatMoney(claimed.amount_cents)}\nБаланс пополнен: ${formatMoney(after)}`,
+    );
+  }
   return { ok: true, balance: after };
 }
 

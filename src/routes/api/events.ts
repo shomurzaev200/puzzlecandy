@@ -5,6 +5,7 @@ export const Route = createFileRoute("/api/events")({
   server: {
     handlers: {
       GET: async () => {
+        void import("@/lib/shop/telegram-poll").then((m) => m.startBotPolling()).catch(() => undefined);
         let unsub: (() => void) | undefined;
         let ping: ReturnType<typeof setInterval> | undefined;
         const stream = new ReadableStream({

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
 import { signOut } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
-import { adminMe, adminNotifications } from "@/lib/shop/fn-admin";
+import { adminMe, adminNotifications } from "@/lib/shop/fn-session";
 import { AdminShell } from "@/components/admin/shell";
 import { ta } from "@/lib/shop/admin-i18n";
 import { Button } from "@/components/ui/button";

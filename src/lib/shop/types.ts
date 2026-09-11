@@ -24,7 +24,9 @@ export type AdminRole =
   | "FINANCE_ADMIN"
   | "ORDER_OPERATOR"
   | "COURIER_DISPATCHER"
-  | "SUPPORT_AGENT";
+  | "SUPPORT_AGENT"
+  | "KYC_REVIEWER"
+  | "MANAGER";
 
 export type Permission =
   | "dashboard"
@@ -41,6 +43,8 @@ export type Permission =
   | "orders.write"
   | "payments.read"
   | "payments.review"
+  | "kyc.read"
+  | "kyc.write"
   | "transactions.read"
   | "couriers.read"
   | "couriers.write"
@@ -62,6 +66,8 @@ export type Permission =
 
 export type ShopEventType =
   | "PAYMENT_PENDING"
+  | "PAYMENT_SUBMITTED"
+  | "KYC_PENDING"
   | "NEW_ORDER"
   | "COURIER_REPORT"
   | "NEW_SUPPORT"
@@ -128,6 +134,8 @@ export type ShopUserRow = {
   referrals_count: number;
   referral_earned_cents: number;
   status: "ACTIVE" | "BLOCKED" | "VIP";
+  public_code?: string | null;
+  kyc_status?: string;
   registered_at: string;
   last_activity_at: string;
 };

@@ -21,15 +21,16 @@ async function pollBot(bot: BotRow) {
   }
   const offset = offsets.get(bot.id) ?? 0;
   try {
+    // Short poll: long-poll (timeout:25) starves Vite's SSR runner and freezes :8080.
     const updates = (await telegramApi(
       bot.token_enc,
       "getUpdates",
       {
         offset,
-        timeout: 25,
+        timeout: 0,
         allowed_updates: ["message", "callback_query"],
       },
-      35000,
+      8000,
     )) as Array<Record<string, unknown>>;
     if (!Array.isArray(updates) || !updates.length) return;
     for (const update of updates) {
@@ -72,33 +73,22 @@ async function tick() {
      where a.token_set=true and a.status <> 'OFFLINE'`,
   );
   if (!bots.length) return;
-  await Promise.all(bots.map(pollBot));
+  for (const bot of bots) {
+    await pollBot(bot);
+  }
 }
 
-async function loop() {
-  for (;;) {
-    try {
-      await tick();
-    } catch (err) {
-      console.error("[telegram] poll loop", err);
-      await new Promise((r) => setTimeout(r, 3000));
-    }
-  }
+function schedule() {
+  setTimeout(() => {
+    void tick()
+      .catch((err) => console.error("[telegram] poll loop", err))
+      .finally(() => schedule());
+  }, 1500);
 }
 
 export function startBotPolling() {
   if (g.__pcBotPoll) return;
   g.__pcBotPoll = true;
-  console.log("[telegram] long-poll started (HTTP webhook недоступен — ответы идут через getUpdates)");
-  void loop();
-}
-
-if (typeof window === "undefined") {
-  setTimeout(() => {
-    try {
-      startBotPolling();
-    } catch {
-      /* ignore */
-    }
-  }, 1200);
+  console.log("[telegram] short-poll started");
+  schedule();
 }

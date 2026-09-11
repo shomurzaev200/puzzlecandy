@@ -95,7 +95,13 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
 
 export async function dashboardStats() {
   const db = await getSql();
-  const q = async (text: string) => asInt((await one<{ n: number }>(db, text))?.n);
+  const q = async (text: string) => {
+    try {
+      return asInt((await one<{ n: number }>(db, text))?.n);
+    } catch {
+      return 0;
+    }
+  };
   const [
     users,
     activeUsers,
@@ -110,6 +116,7 @@ export async function dashboardStats() {
     pendingTickets,
     offlineBots,
     errorCount,
+    pendingKyc,
     feed,
     bots,
   ] = await Promise.all([
@@ -119,13 +126,14 @@ export async function dashboardStats() {
     q(`select count(*)::int as n from orders`),
     q(`select count(*)::int as n from orders where created_at > now() - interval '24 hours'`),
     q(`select coalesce(sum(total_cents),0)::int as n from orders where status not in ('CANCELLED','REFUNDED')`),
-    q(`select count(*)::int as n from payments where status='PENDING'`),
+    q(`select count(*)::int as n from payments where status in ('PENDING','SUBMITTED','UNDER_REVIEW')`),
     q(`select count(*)::int as n from courier_reports where status='PENDING_REVIEW'`),
     q(`select count(*)::int as n from products where deleted_at is null and published=true`),
     q(`select count(*)::int as n from products where status='OUT_OF_STOCK' and deleted_at is null`),
     q(`select count(*)::int as n from support_tickets where status in ('OPEN','WAITING')`),
     q(`select count(*)::int as n from bot_accounts where status in ('OFFLINE','ERROR')`),
     q(`select count(*)::int as n from system_errors where created_at > now() - interval '24 hours'`),
+    q(`select count(*)::int as n from kyc_submissions where status='UNDER_REVIEW'`),
     many(
       db,
       `select id, type, title, body, entity_type, entity_id, created_at from notifications order by created_at desc limit 12`,
@@ -177,6 +185,7 @@ export async function dashboardStats() {
     pendingTickets,
     offlineBots,
     errorCount,
+    pendingKyc,
     feed,
     bots,
     series,

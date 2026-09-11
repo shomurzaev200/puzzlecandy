@@ -17,7 +17,7 @@ import {
   type Density,
   type RecentItem,
 } from "@/lib/shop/ops-client";
-import { adminNotifications, adminReadNotifications } from "@/lib/shop/fn-admin";
+import { adminNotifications, adminReadNotifications } from "@/lib/shop/fn-session";
 import { opsCanned } from "@/lib/shop/fn-ops";
 
 export function applyDensity(d: Density) {

@@ -47,14 +47,8 @@ function pgliteBootstrapPlugin(): Plugin {
         console.error("[app-builder] DB bootstrap failed:", err);
         throw err;
       }
-      try {
-        const poll = (await server.ssrLoadModule("/src/lib/shop/telegram-poll.ts")) as {
-          startBotPolling?: () => void;
-        };
-        poll.startBotPolling?.();
-      } catch (err) {
-        console.error("[telegram] poller start failed:", err);
-      }
+      // Telegram poller is started from fn-session (login/adminMe), not here.
+      // ssrLoadModule of the poller poisons TanStack Start server-function IDs.
     },
   };
 }

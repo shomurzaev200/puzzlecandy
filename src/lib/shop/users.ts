@@ -1,5 +1,5 @@
 import { asInt, many, one, sql as getSql } from "./db";
-import { nid, referralCode } from "./ids";
+import { nid, referralCode, nextPublicCode } from "./ids";
 import { audit, notify } from "./audit";
 import { publish } from "./events";
 import type { Lang, ShopUserRow } from "./types";
@@ -32,6 +32,7 @@ export async function upsertShopUser(opts: {
     return { ...existing, username: opts.username ?? existing.username, first_name: opts.firstName ?? existing.first_name };
   }
   const id = nid("usr");
+  const publicCode = await nextPublicCode(db, "USER");
   let referredBy: string | null = null;
   if (opts.startPayload) {
     const ref = await one<{ id: string }>(db, `select id from shop_users where referral_code=$1`, [
@@ -42,8 +43,8 @@ export async function upsertShopUser(opts: {
   const row = await one<ShopUserRow>(
     db,
     `insert into shop_users
-      (id, telegram_id, username, first_name, last_name, language, referral_code, referred_by)
-     values ($1,$2,$3,$4,$5,$6,$7,$8)
+      (id, telegram_id, username, first_name, last_name, language, referral_code, referred_by, public_code)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      returning *`,
     [
       id,
@@ -54,6 +55,7 @@ export async function upsertShopUser(opts: {
       opts.language ?? "ru",
       referralCode(),
       referredBy,
+      publicCode,
     ],
   );
   if (!row) throw new Error("Failed to create user");
@@ -113,7 +115,7 @@ export async function searchUsers(opts: {
     params.push(`%${opts.q.replaceAll("%", "")}%`);
     const i = params.length;
     where.push(
-      `(username ilike $${i} or coalesce(first_name,'') ilike $${i} or referral_code ilike $${i} or cast(telegram_id as text) ilike $${i} or id ilike $${i})`,
+      `(username ilike $${i} or coalesce(first_name,'') ilike $${i} or referral_code ilike $${i} or cast(telegram_id as text) ilike $${i} or id ilike $${i} or coalesce(public_code,'') ilike $${i})`,
     );
   }
   if (opts.status && opts.status !== "ALL") {

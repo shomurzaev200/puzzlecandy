@@ -27,7 +27,9 @@ export type SeqName =
   | "TKT"
   | "TSK"
   | "DEALS"
-  | "JOB";
+  | "JOB"
+  | "KYC"
+  | "USER";
 
 export async function nextPublicCode(
   sql: { query: <T>(text: string, params?: unknown[]) => Promise<T[]> },

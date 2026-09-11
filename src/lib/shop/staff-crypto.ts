@@ -40,4 +40,6 @@ export const STAFF_ROLES = [
   "SUPPORT",
   "FINANCE",
   "COURIER_MANAGER",
+  "KYC_REVIEWER",
+  "MANAGER",
 ] as const;

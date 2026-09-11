@@ -1,7 +1,7 @@
 import type { Lang } from "./types";
 
 const POSITIVE = new Set(["APPROVED", "ACTIVE", "ONLINE", "CONNECTED", "COMPLETED", "DELIVERED", "PAID", "VISIBLE", "VIP", "LIVE"]);
-const WARN = new Set(["PENDING", "PENDING_REVIEW", "CHECKING", "NEED_AUTH", "PROCESSING", "PREPARING", "IN_DELIVERY", "COURIER_ASSIGNED", "WAITING"]);
+const WARN = new Set(["PENDING", "PENDING_REVIEW", "CHECKING", "NEED_AUTH", "PROCESSING", "PREPARING", "IN_DELIVERY", "COURIER_ASSIGNED", "WAITING", "SUBMITTED", "UNDER_REVIEW"]);
 const BAD = new Set(["REJECTED", "BLOCKED", "ERROR", "CANCELLED", "DISABLED", "OFFLINE", "SUSPENDED", "OUT_OF_STOCK", "HIDDEN"]);
 
 export function statusTone(code: string | null | undefined): "ok" | "warn" | "bad" | "info" {
@@ -122,6 +122,7 @@ export const ADMIN: Record<string, Pack> = {
   health_load: { ru: "Нагрузка", uz: "Yuk", en: "Busy" },
   health_err: { ru: "Ошибка", uz: "Xato", en: "Error" },
   att_pay: { ru: "{n} платежей на проверке", uz: "{n} to‘lov tekshiruvda", en: "{n} payments pending" },
+  att_kyc: { ru: "{n} KYC на проверке", uz: "{n} KYC tekshiruvda", en: "{n} KYC pending" },
   att_del: { ru: "{n} доставок на проверке", uz: "{n} yetkazish tekshiruvda", en: "{n} deliveries pending" },
   att_sup: { ru: "{n} обращений без ответа", uz: "{n} javobsiz murojaat", en: "{n} unanswered tickets" },
   att_bot: { ru: "{n} Telegram-бот отключён", uz: "{n} bot o‘chiq", en: "{n} bots offline" },
@@ -168,6 +169,24 @@ export const ADMIN: Record<string, Pack> = {
   cats_title: { ru: "Категории", uz: "Kategoriyalar", en: "Categories" },
   field_slug: { ru: "Код", uz: "Kod", en: "Code" },
   add_category: { ru: "Добавить категорию", uz: "Kategoriya qo‘shish", en: "Add category" },
+  cat_products: { ru: "Товаров", uz: "Mahsulotlar", en: "Products" },
+  cat_has_products: { ru: "Нельзя удалить: в категории {n} товар(ов).", uz: "O‘chirib bo‘lmaydi: {n} mahsulot.", en: "Cannot delete: {n} products in this category." },
+  cat_search: { ru: "Поиск категории", uz: "Qidiruv", en: "Search category" },
+  confirm_delete_cat: { ru: "Удалить категорию?", uz: "Kategoriya o‘chirilsinmi?", en: "Delete category?" },
+  nav_kyc: { ru: "Проверка KYC", uz: "KYC", en: "KYC review" },
+  nav_methods: { ru: "Реквизиты оплаты", uz: "Rekvizitlar", en: "Payout details" },
+  kyc_kicker: { ru: "ПРОВЕРКА", uz: "TEKSHIRUV", en: "KYC" },
+  kyc_title: { ru: "Проверка пользователей", uz: "Foydalanuvchilarni tekshirish", en: "Identity review" },
+  methods_kicker: { ru: "КАССА", uz: "KASSA", en: "PAYOUT" },
+  methods_title: { ru: "Реквизиты оплаты", uz: "To‘lov rekvizitlari", en: "Payment details" },
+  add_method: { ru: "Добавить реквизит", uz: "Rekvizit qo‘shish", en: "Add details" },
+  method_title: { ru: "Название", uz: "Nomi", en: "Title" },
+  method_kind: { ru: "Тип", uz: "Turi", en: "Type" },
+  method_details: { ru: "Реквизиты", uz: "Rekvizitlar", en: "Details" },
+  method_comment: { ru: "Комментарий", uz: "Izoh", en: "Comment" },
+  col_id: { ru: "ID", uz: "ID", en: "ID" },
+  col_created: { ru: "Создано", uz: "Yaratilgan", en: "Created" },
+  pay_to: { ru: "К оплате", uz: "To‘lov", en: "Pay" },
 
   orders_kicker: { ru: "ИСПОЛНЕНИЕ", uz: "BAJARISH", en: "FULFILLMENT" },
   orders_title: { ru: "Заказы", uz: "Buyurtmalar", en: "Orders" },
@@ -385,7 +404,10 @@ export const ADMIN: Record<string, Pack> = {
 
   hours: { ru: "Часы работы", uz: "Ish vaqti", en: "Hours" },
   col_username: { ru: "Username", uz: "Username", en: "Username" },
-  col_id: { ru: "ID", uz: "ID", en: "ID" },
+  sla_exceeded: { ru: "SLA просрочен (>24ч)", uz: "SLA oshdi", en: "SLA exceeded (>24h)" },
+  kyc_reason: { ru: "Причина отклонения", uz: "Rad etish sababi", en: "Reject reason" },
+  kyc_approve: { ru: "Одобрить", uz: "Tasdiqlash", en: "Approve" },
+  kyc_reject: { ru: "Отклонить", uz: "Rad etish", en: "Reject" },
   sla: { ru: "Ожидает", uz: "Kutilmoqda", en: "Waiting" },
   save_filter: { ru: "Сохранить фильтр", uz: "Filtrni saqlash", en: "Save filter" },
   saved_filters: { ru: "Сохранённые фильтры", uz: "Saqlangan filtrlar", en: "Saved filters" },
@@ -415,6 +437,8 @@ export const ADMIN: Record<string, Pack> = {
   tg_loc: { ru: "📍 локация", uz: "📍 lokatsiya", en: "📍 location" },
   signing_out: { ru: "Выходим…", uz: "Chiqilmoqda…", en: "Signing out…" },
   evt_PAYMENT_PENDING: { ru: "Новый платёж", uz: "Yangi to‘lov", en: "New payment" },
+  evt_PAYMENT_SUBMITTED: { ru: "Скриншот оплаты", uz: "To‘lov skrinshoti", en: "Payment screenshot" },
+  evt_KYC_PENDING: { ru: "Новая KYC заявка", uz: "Yangi KYC", en: "New KYC" },
   evt_NEW_ORDER: { ru: "Новый заказ", uz: "Yangi buyurtma", en: "New order" },
   evt_NEW_SUPPORT: { ru: "Новое обращение", uz: "Yangi murojaat", en: "New ticket" },
   evt_SYSTEM_ERROR: { ru: "Системная ошибка", uz: "Tizim xatosi", en: "System error" },
@@ -467,7 +491,9 @@ const STATUS_RU: Record<string, Pack> = {
   NEED_AUTH: { ru: "Требуется авторизация", uz: "Avtorizatsiya kerak", en: "Auth required" },
   IDLE: { ru: "Свободен", uz: "Bo‘sh", en: "Idle" },
   BUSY: { ru: "Занят", uz: "Band", en: "Busy" },
-  SUBMITTED: { ru: "Отправлено", uz: "Yuborilgan", en: "Submitted" },
+  SUBMITTED: { ru: "Скриншот получен", uz: "Skrinshot keldi", en: "Screenshot received" },
+  UNDER_REVIEW: { ru: "На проверке", uz: "Tekshiruvda", en: "Under review" },
+  EXPIRED: { ru: "Истекла", uz: "Muddati o‘tgan", en: "Expired" },
   ALL: { ru: "Все", uz: "Barchasi", en: "All" },
 };
 
@@ -482,6 +508,8 @@ const ROLE_RU: Record<string, Pack> = {
   ORDER_OPERATOR: { ru: "Оператор заказов", uz: "Buyurtma operatori", en: "Order operator" },
   COURIER_DISPATCHER: { ru: "Диспетчер курьеров", uz: "Kuryer dispatcher", en: "Courier dispatcher" },
   SUPPORT_AGENT: { ru: "Агент поддержки", uz: "Yordam agenti", en: "Support agent" },
+  KYC_REVIEWER: { ru: "Проверка KYC", uz: "KYC tekshiruvchi", en: "KYC reviewer" },
+  MANAGER: { ru: "Менеджер", uz: "Menejer", en: "Manager" },
 };
 
 const TX_RU: Record<string, Pack> = {

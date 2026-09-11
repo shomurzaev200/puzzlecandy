@@ -87,12 +87,18 @@ export async function globalSearch(q: string) {
   const db = await getSql();
   const like = `%${q.replaceAll("%", "").slice(0, 80)}%`;
   const [users, orders, products, payments, tickets, couriers] = await Promise.all([
-    many(db, `select id, telegram_id, username, first_name from shop_users where username ilike $1 or first_name ilike $1 or cast(telegram_id as text) ilike $1 or referral_code ilike $1 limit 8`, [like]),
+    many(db, `select id, telegram_id, username, first_name, public_code from shop_users where username ilike $1 or first_name ilike $1 or cast(telegram_id as text) ilike $1 or referral_code ilike $1 or id ilike $1 or coalesce(public_code,'') ilike $1 limit 8`, [like]),
     many(db, `select id, public_code, status, total_cents from orders where public_code ilike $1 or id ilike $1 limit 8`, [like]),
     many(db, `select id, slug, name_i18n, status from products where slug ilike $1 or id ilike $1 or name_i18n::text ilike $1 limit 8`, [like]),
     many(db, `select id, public_code, status, amount_cents from payments where public_code ilike $1 or id ilike $1 limit 8`, [like]),
     many(db, `select id, public_code, status, subject from support_tickets where public_code ilike $1 or subject ilike $1 limit 8`, [like]),
     many(db, `select id, username, first_name, telegram_id from couriers where username ilike $1 or first_name ilike $1 or cast(telegram_id as text) ilike $1 limit 8`, [like]),
   ]);
-  return { users, orders, products, payments, tickets, couriers };
+  let kyc = users.slice(0, 0);
+  try {
+    kyc = await many(db, `select id, public_code, status, user_id from kyc_submissions where public_code ilike $1 or id ilike $1 limit 8`, [like]);
+  } catch {
+    kyc = [];
+  }
+  return { users, orders, products, payments, tickets, couriers, kyc };
 }

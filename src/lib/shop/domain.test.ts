@@ -63,6 +63,10 @@ test("RBAC finance cannot delete products", () => {
   assert.ok(permissionsFor("SUPPORT").includes("support.write"));
   assert.equal(can("FINANCE_ADMIN", "settings.secrets"), false);
   assert.equal(can("ORDER_OPERATOR", "payments.review"), false);
+  assert.equal(can("KYC_REVIEWER", "kyc.write"), true);
+  assert.equal(can("KYC_REVIEWER", "payments.review"), false);
+  assert.equal(can("FINANCE", "kyc.write"), false);
+  assert.equal(can("MANAGER", "users.balance"), false);
 });
 
 test("i18n packs cover ru/uz/en for every key", () => {
@@ -95,5 +99,29 @@ test("admin i18n is Russian-first and multilingual", () => {
   assert.equal(ta("qa_product").includes("Добавить товар"), true);
   assert.equal(ta("attention"), "Требует внимания");
   assert.equal(eventLabel("PAYMENT_PENDING"), "Новый платёж");
+  assert.equal(eventLabel("KYC_PENDING"), "Новая KYC заявка");
+  assert.equal(statusLabel("SUBMITTED"), "Скриншот получен");
+});
+
+test("same credit amount allocates distinct pay amounts", () => {
+  const used = new Set<number>();
+  function alloc(credit: number) {
+    let pay = credit;
+    while (used.has(pay)) pay += 1;
+    used.add(pay);
+    return pay;
+  }
+  assert.equal(alloc(50000), 50000);
+  assert.equal(alloc(50000), 50001);
+  assert.equal(alloc(50000), 50002);
+  assert.equal(used.size, 3);
+});
+
+test("KYC and payment bot strings exist in all languages", () => {
+  for (const key of ["pay_menu", "pay_btn_topup", "pay_btn_copy", "kyc_intro", "kyc_sent", "handler_error", "deposit_created"]) {
+    assert.ok(STRINGS[key]?.ru, key);
+    assert.ok(STRINGS[key]?.uz, key);
+    assert.ok(STRINGS[key]?.en, key);
+  }
 });
 

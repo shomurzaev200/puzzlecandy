@@ -4,7 +4,7 @@ import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/clie
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { ta } from "@/lib/shop/admin-i18n";
-import { authHasAdmin } from "@/lib/shop/fn-admin";
+import { authHasAdmin } from "@/lib/shop/fn-session";
 
 export const Route = createFileRoute("/login")({ component: Login });
 

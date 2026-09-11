@@ -9,6 +9,7 @@ import {
   Briefcase,
   ChevronRight,
   ClipboardList,
+  CreditCard,
   FolderTree,
   Headphones,
   KeyRound,
@@ -50,9 +51,9 @@ import { ta, roleLabel, toneClass, statusLabel } from "@/lib/shop/admin-i18n";
 import { InboxBell, SidePins, useDensity } from "./ops-kit";
 import { evalCommandCalc, loadSoundPrefs, playPing, slaLevel, slaMinutes } from "@/lib/shop/ops-client";
 import { opsSearch } from "@/lib/shop/fn-ops";
-import { adminNavCounts } from "@/lib/shop/fn-admin";
+import { adminNavCounts } from "@/lib/shop/fn-session";
 
-type BadgeKey = "orders" | "payments" | "errors" | "tickets" | "unread";
+type BadgeKey = "orders" | "payments" | "errors" | "tickets" | "unread" | "kyc";
 
 type NavItem = {
   to: string;
@@ -79,6 +80,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/admin/orders", label: ta("nav_orders"), icon: ClipboardList, perm: "orders.read", badge: "orders" },
       { to: "/admin/payments", label: ta("nav_payments"), icon: Wallet, perm: "payments.read", badge: "payments" },
+      { to: "/admin/methods", label: ta("nav_methods"), icon: CreditCard, perm: "payments.read" },
       { to: "/admin/transactions", label: ta("nav_transactions"), icon: Receipt, perm: "transactions.read" },
       { to: "/admin/refunds", label: "Возвраты", icon: RefreshCw, perm: "payments.read" },
       { to: "/admin/approvals", label: "Согласования", icon: ShieldCheck, perm: "dashboard" },
@@ -103,6 +105,7 @@ export const NAV_GROUPS: NavGroup[] = [
     label: ta("nav_group_people"),
     items: [
       { to: "/admin/users", label: ta("nav_users"), icon: Users, perm: "users.read" },
+      { to: "/admin/kyc", label: ta("nav_kyc"), icon: ShieldCheck, perm: "kyc.read", badge: "kyc" },
       { to: "/admin/segments", label: "Сегменты", icon: Users, perm: "users.read" },
       { to: "/admin/jobs", label: ta("nav_jobs"), icon: Briefcase, perm: "jobs.write" },
     ],
@@ -141,14 +144,15 @@ const COMMANDS: Array<{ id: string; label: string; to: string; keywords: string 
   { id: "user", label: ta("cmd_find_user"), to: "/admin/users", keywords: "пользователь user @ " },
   { id: "product", label: ta("cmd_create_product"), to: "/admin/products", keywords: "товар создать product" },
   { id: "balance", label: ta("cmd_balance"), to: "/admin/users", keywords: "баланс money" },
-  { id: "pay", label: ta("cmd_pending_pay"), to: "/admin/payments?status=PENDING", keywords: "платеж pending" },
+  { id: "kyc", label: ta("nav_kyc"), to: "/admin/kyc", keywords: "kyc верификация паспорт" },
+  { id: "pay", label: ta("cmd_pending_pay"), to: "/admin/payments?status=SUBMITTED", keywords: "платеж pending" },
   { id: "order", label: ta("cmd_find_order"), to: "/admin/orders", keywords: "заказ ord" },
   { id: "couriers", label: ta("cmd_couriers"), to: "/admin/couriers", keywords: "курьер" },
   { id: "map", label: ta("cmd_map"), to: "/admin/map", keywords: "карта map" },
   { id: "bots", label: ta("nav_bots"), to: "/admin/bots", keywords: "telegram бот" },
 ];
 
-type Counts = { orders: number; payments: number; errors: number; tickets: number };
+type Counts = { orders: number; payments: number; errors: number; tickets: number; kyc: number };
 
 function isActivePath(pathname: string, to: string) {
   if (to === "/admin") return pathname === "/admin";
@@ -189,7 +193,7 @@ export function AdminShell({
   const [cmdQ, setCmdQ] = useState("");
   const [collapsed, setCollapsed] = useState(false);
   const [live, setLive] = useState(true);
-  const [counts, setCounts] = useState<Counts>({ orders: 0, payments: 0, errors: 0, tickets: 0 });
+  const [counts, setCounts] = useState<Counts>({ orders: 0, payments: 0, errors: 0, tickets: 0, kyc: 0 });
   const { density, set: setDensity } = useDensity();
 
   useEffect(() => {

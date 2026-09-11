@@ -3,10 +3,7 @@ import { ensureSeed } from "@/lib/shop/seed";
 import { getSetting } from "@/lib/shop/finance";
 import { one, sql as getSql } from "@/lib/shop/db";
 import { processTelegramUpdate, tokenForBot } from "@/lib/shop/telegram-outbound";
-import { startBotPolling } from "@/lib/shop/telegram-poll";
 import type { BotKind } from "@/lib/shop/types";
-
-startBotPolling();
 
 export const Route = createFileRoute("/api/telegram/$bot")({
   server: {

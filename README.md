@@ -68,6 +68,20 @@ npm run set-role -- ВАШ_EMAIL SUPER_ADMIN
 
 После смены роли выйдите и войдите снова. В интерфейсе роль меняет только супер-админ: **Сотрудники и доступ** → выпадающий список роли.
 
+Если админка пишет `Invalid server function ID` (страница не грузится после логина):
+
+```bash
+cd ~/puzzlecandy
+git pull
+pkill -f vite || true
+rm -rf node_modules/.vite
+export BETTER_AUTH_URL=http://18.130.218.152:8080
+export BETTER_AUTH_TRUSTED_ORIGINS=http://18.130.218.152:8080
+npm run dev
+```
+
+Затем в браузере: жёсткое обновление (Ctrl+Shift+R). Telegram-бот на HTTP-IP отвечает через long-poll, не через webhook.
+
 Файл `.env` не обязателен: локально поднимается встроенная Postgres (PGLite).
 Для внешнего Postgres задайте `DATABASE_URL`.
 

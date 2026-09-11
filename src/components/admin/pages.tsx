@@ -52,27 +52,30 @@ import {
   adminCouriers,
   adminCourierStatus,
   adminDashboard,
+  adminDeleteCategory,
   adminDeleteProduct,
   adminErrors,
   adminExport,
   adminJobs,
   adminJobApp,
+  adminKyc,
   adminMap,
   adminModerateReview,
-  adminNotifications,
+  adminPaymentMethods,
   adminOrder,
   adminOrders,
   adminPayment,
   adminPayments,
   adminProducts,
-  adminReadNotifications,
   adminReports,
+  adminReviewKyc,
   adminReviewDelivery,
   adminReviewPayment,
   adminReviews,
   adminRoles,
   adminSaveCategory,
   adminSaveJob,
+  adminSavePaymentMethod,
   adminSaveProduct,
   adminSaveSettings,
   adminSearch,
@@ -90,6 +93,7 @@ import {
   adminUserAction,
   adminUsers,
 } from "@/lib/shop/fn-admin";
+import { adminNotifications, adminReadNotifications } from "@/lib/shop/fn-session";
 
 function money(v: unknown) {
   return formatMoney(asInt(v));
@@ -121,17 +125,20 @@ export function DashboardPage() {
   const pendingPay = asInt(data.pendingPay);
   const pendingDel = asInt(data.pendingDel);
   const pendingTickets = asInt(data.pendingTickets);
+  const pendingKyc = asInt(data.pendingKyc);
   const offlineBots = asInt(data.offlineBots);
   const errorCount = asInt(data.errorCount);
   const attention: Array<{ to: string; text: string; n: number }> = [];
-  if (pendingPay > 0) attention.push({ to: "/admin/payments?status=PENDING", text: ta("att_pay", { n: pendingPay }), n: pendingPay });
+  if (pendingPay > 0) attention.push({ to: "/admin/payments?status=SUBMITTED", text: ta("att_pay", { n: pendingPay }), n: pendingPay });
+  if (pendingKyc > 0) attention.push({ to: "/admin/kyc", text: ta("att_kyc", { n: pendingKyc }), n: pendingKyc });
   if (pendingDel > 0) attention.push({ to: "/admin/couriers", text: ta("att_del", { n: pendingDel }), n: pendingDel });
   if (pendingTickets > 0) attention.push({ to: "/admin/support", text: ta("att_sup", { n: pendingTickets }), n: pendingTickets });
   if (offlineBots > 0) attention.push({ to: "/admin/bots", text: ta("att_bot", { n: offlineBots }), n: offlineBots });
   if (errorCount > 0) attention.push({ to: "/admin/errors", text: ta("att_err", { n: errorCount }), n: errorCount });
   const quick = [
     { to: "/admin/products", label: ta("qa_product") },
-    { to: "/admin/payments?status=PENDING", label: ta("qa_payments") },
+    { to: "/admin/payments?status=SUBMITTED", label: ta("qa_payments") },
+    { to: "/admin/kyc", label: ta("nav_kyc") },
     { to: "/admin/users", label: ta("qa_balance") },
     { to: "/admin/orders", label: ta("qa_order") },
     { to: "/admin/couriers", label: ta("qa_courier") },
@@ -278,7 +285,7 @@ export function UsersPage() {
         <table className="w-full min-w-[720px] text-left text-sm">
           <thead className="bg-panel text-xs tracking-wide text-muted">
             <tr>
-              {[ta("col_tg"), ta("col_name"), ta("balance"), ta("col_buys"), ta("col_disc"), ta("col_status"), ""].map((h) => (
+              {[ta("col_id"), ta("col_tg"), ta("col_username"), ta("col_name"), ta("balance"), ta("col_buys"), ta("col_status"), ""].map((h) => (
                 <th key={h} className="px-3 py-2 font-medium">{h}</th>
               ))}
             </tr>
@@ -286,11 +293,12 @@ export function UsersPage() {
           <tbody>
             {(data ?? []).map((u) => (
               <tr key={String(u.id)} className="border-t border-border">
+                <td className="px-3 py-2 font-mono text-[11px]">{String(u.public_code ?? u.id).slice(0, 22)}</td>
                 <td className="px-3 py-2 font-mono text-xs">{String(u.telegram_id)}</td>
-                <td className="px-3 py-2">{String(u.first_name ?? u.username ?? "—")}</td>
+                <td className="px-3 py-2">{u.username ? `@${String(u.username)}` : "—"}</td>
+                <td className="px-3 py-2">{String(u.first_name ?? "—")} {String(u.last_name ?? "")}</td>
                 <td className="px-3 py-2 tabular-nums text-primary">{money(u.balance_cents)}</td>
                 <td className="px-3 py-2">{String(u.purchases_count)}</td>
-                <td className="px-3 py-2">{String(u.discount_percent)}%</td>
                 <td className="px-3 py-2"><Badge value={String(u.status)} /></td>
                 <td className="px-3 py-2">
                   <div className="flex flex-wrap gap-1">
@@ -328,8 +336,10 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
       <div className="h-full w-full max-w-xl overflow-y-auto border-l border-border bg-surface p-5">
         <div className="flex justify-between">
           <div>
-            <p className="font-mono text-xs text-cyan">{String(u.telegram_id)}</p>
-            <h2 className="text-xl">{String(u.first_name ?? ta("nav_users"))}</h2>
+            <p className="font-mono text-xs text-cyan">User {String(u.public_code ?? u.id)}</p>
+            <p className="font-mono text-[11px] text-muted">Telegram {String(u.telegram_id)} {u.username ? `· @${String(u.username)}` : ""}</p>
+            <h2 className="text-xl">{String(u.first_name ?? ta("nav_users"))} {String(u.last_name ?? "")}</h2>
+            <p className="text-xs text-muted">KYC: <Badge value={String(u.kyc_status ?? "NONE")} /></p>
           </div>
           <Button variant="ghost" onClick={onClose}>{ta("close")}</Button>
         </div>
@@ -352,7 +362,7 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           <Button className="mt-2" variant="ghost" onClick={() => act("message")}>{ta("write")}</Button>
         </div>
         <div className="mt-4 flex gap-2 text-xs">
-          {[["overview", ta("overview")], ["orders", ta("orders")], ["ledger", ta("ledger")], ["payments", ta("pay_title")], ["notes", "Заметки"], ["timeline", "Таймлайн"]].map(([k, l]) => (
+          {[["overview", ta("overview")], ["orders", ta("orders")], ["ledger", ta("ledger")], ["payments", ta("pay_title")], ["kyc", ta("nav_kyc")], ["notes", "Заметки"], ["timeline", "Таймлайн"]].map(([k, l]) => (
             <button key={k} className={tab === k ? "text-primary" : "text-muted"} onClick={() => setTab(k)}>{l}</button>
           ))}
         </div>
@@ -363,6 +373,7 @@ function UserDrawer({ id, onClose }: { id: string; onClose: () => void }) {
           {tab === "orders" ? data.orders.map((o) => <p key={String(o.id)}>{String(o.public_code)} <Badge value={String(o.status)} /> {money(o.total_cents)}</p>) : null}
           {tab === "ledger" ? data.txns.map((t) => <p key={String(t.id)} className="font-mono text-xs">{statusLabel(String(t.type))} {money(t.amount_cents)} → {money(t.balance_after)}</p>) : null}
           {tab === "payments" ? data.pays.map((p) => <p key={String(p.id)}>{String(p.public_code)} <Badge value={String(p.status)} /> {money(p.amount_cents)}</p>) : null}
+          {tab === "kyc" ? ((data as { kyc?: Array<Record<string, unknown>> }).kyc ?? []).map((k) => <p key={String(k.id)}>{String(k.public_code)} <Badge value={String(k.status)} /></p>) : null}
           {tab === "notes" ? <UserNotes id={id} /> : null}
           {tab === "timeline" ? <UserTimeline id={id} /> : null}
         </div>
@@ -495,22 +506,112 @@ export function CategoriesPage() {
   const { data, reload } = useLoad(() => adminCategories());
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [q, setQ] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const rows = (data ?? []).filter((c) => {
+    const n = pickI18n(asJson(c.name_i18n, {}), "ru") + String(c.slug);
+    return !q.trim() || n.toLowerCase().includes(q.trim().toLowerCase());
+  });
   return (
     <div>
       <PageTitle kicker={ta("cats_kicker")} title={ta("cats_title")} />
+      {err ? <p className="mb-3 text-sm text-danger">{err}</p> : null}
       <div className="mb-4 flex flex-wrap gap-2">
+        <input className="min-h-11 rounded-md border border-border bg-panel px-3 text-sm" placeholder={ta("cat_search")} value={q} onChange={(e) => setQ(e.target.value)} />
         <Field label={ta("field_name")} value={name} onChange={setName} />
         <Field label={ta("field_slug")} value={slug} onChange={setSlug} />
-        <Button onClick={async () => { await adminSaveCategory({ data: { name, slug: slug || name.toLowerCase().replace(/\s+/g, "-") } }); setName(""); reload(); }}>{ta("add_category")}</Button>
+        <Button
+          onClick={async () => {
+            if (!name.trim()) return;
+            await adminSaveCategory({
+              data: {
+                id: editId ?? undefined,
+                name,
+                slug: slug || name.toLowerCase().replace(/\s+/g, "-"),
+              },
+            });
+            setName("");
+            setSlug("");
+            setEditId(null);
+            reload();
+          }}
+        >
+          {editId ? ta("save") : ta("add_category")}
+        </Button>
       </div>
-      <ul className="space-y-2">
-        {(data ?? []).map((c) => (
-          <li key={String(c.id)} className="panel flex items-center justify-between rounded-lg px-4 py-3">
-            <span>{pickI18n(asJson(c.name_i18n, {}), "ru")} <span className="text-muted">/{String(c.slug)}</span></span>
-            <Button variant="ghost" onClick={async () => { await adminSaveCategory({ data: { id: String(c.id), slug: String(c.slug), name: pickI18n(asJson(c.name_i18n, {}), "ru"), status: c.status === "ACTIVE" ? "HIDDEN" : "ACTIVE" } }); reload(); }}><Badge value={String(c.status)} /></Button>
-          </li>
-        ))}
-      </ul>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-panel text-xs text-muted">
+            <tr>
+              <th className="px-3 py-2">{ta("col_id")}</th>
+              <th className="px-3 py-2">{ta("field_name")}</th>
+              <th className="px-3 py-2">{ta("cat_products")}</th>
+              <th className="px-3 py-2">{ta("col_status")}</th>
+              <th className="px-3 py-2">{ta("col_created")}</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((c) => (
+              <tr key={String(c.id)} className="border-t border-border">
+                <td className="px-3 py-2 font-mono text-[11px]">{String(c.id).slice(0, 12)}</td>
+                <td className="px-3 py-2">
+                  {pickI18n(asJson(c.name_i18n, {}), "ru")} <span className="text-muted">/{String(c.slug)}</span>
+                </td>
+                <td className="px-3 py-2">{String(c.product_count ?? 0)}</td>
+                <td className="px-3 py-2"><Badge value={String(c.status)} /></td>
+                <td className="px-3 py-2 text-xs text-muted">{String(c.created_at ?? "").slice(0, 16)}</td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-1">
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        setEditId(String(c.id));
+                        setName(pickI18n(asJson(c.name_i18n, {}), "ru"));
+                        setSlug(String(c.slug));
+                      }}
+                    >
+                      {ta("edit")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        await adminSaveCategory({
+                          data: {
+                            id: String(c.id),
+                            slug: String(c.slug),
+                            name: pickI18n(asJson(c.name_i18n, {}), "ru"),
+                            status: c.status === "ACTIVE" ? "HIDDEN" : "ACTIVE",
+                          },
+                        });
+                        reload();
+                      }}
+                    >
+                      {c.status === "ACTIVE" ? ta("hide") : ta("show")}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={async () => {
+                        if (!confirm(ta("confirm_delete_cat"))) return;
+                        const res = await adminDeleteCategory({ data: { id: String(c.id) } });
+                        if (res && "ok" in res && !res.ok) {
+                          setErr(ta("cat_has_products", { n: String((res as { count?: number }).count ?? 0) }));
+                          return;
+                        }
+                        setErr(null);
+                        reload();
+                      }}
+                    >
+                      {ta("delete")}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -613,7 +714,7 @@ export function OrdersPage() {
 
 export function PaymentsPage() {
   const search = useRouterState({ select: (s) => s.location.searchStr });
-  const [status, setStatus] = useState(() => queryStatus() || "PENDING");
+  const [status, setStatus] = useState(() => queryStatus() || "SUBMITTED");
   useEffect(() => {
     const s = new URLSearchParams(typeof search === "string" ? search.replace(/^\?/, "") : "").get("status");
     if (s) setStatus(s);
@@ -660,7 +761,7 @@ export function PaymentsPage() {
             reader.readAsDataURL(file);
           }}
         />
-        <div className="mb-3 flex flex-wrap gap-2">{["PENDING", "APPROVED", "REJECTED", "ALL"].map((s) => <Button key={s} variant={status === s ? "primary" : "ghost"} onClick={() => setStatus(s)}>{statusLabel(s)}</Button>)}</div>
+        <div className="mb-3 flex flex-wrap gap-2">{["SUBMITTED", "UNDER_REVIEW", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "ALL"].map((s) => <Button key={s} variant={status === s ? "primary" : "ghost"} onClick={() => setStatus(s)}>{statusLabel(s)}</Button>)}</div>
         <div className="mb-4">
           <SavedFilters storageKey="pc.filter.payments" current={status} onApply={setStatus} />
         </div>
@@ -694,6 +795,7 @@ export function PaymentsPage() {
                 <th className="px-3 py-2">{ta("col_code")}</th>
                 <th className="px-3 py-2">{ta("col_user")}</th>
                 <th className="px-3 py-2">{ta("col_amount")}</th>
+                <th className="px-3 py-2">{ta("pay_to")}</th>
                 <th className="px-3 py-2">{ta("col_status")}</th>
                 <th className="px-3 py-2">SLA</th>
               </tr>
@@ -726,8 +828,8 @@ export function PaymentsPage() {
                     <td className="relative px-3 py-2 font-mono text-xs">
                       {String(p.public_code)}
                       <QuickIcons
-                        onApprove={String(p.status) === "PENDING" ? () => void decide(id, "APPROVED") : undefined}
-                        onReject={String(p.status) === "PENDING" ? () => { setOpen(id); } : undefined}
+                        onApprove={["PENDING", "SUBMITTED", "UNDER_REVIEW"].includes(String(p.status)) ? () => void decide(id, "APPROVED") : undefined}
+                        onReject={["PENDING", "SUBMITTED", "UNDER_REVIEW"].includes(String(p.status)) ? () => { setOpen(id); } : undefined}
                         copyValue={String(p.public_code)}
                         username={p.username ? String(p.username) : null}
                         telegram={p.telegram_id as number | undefined}
@@ -735,12 +837,13 @@ export function PaymentsPage() {
                     </td>
                     <td className="px-3 py-2">{String(p.username ?? p.first_name)}</td>
                     <td className="px-3 py-2 text-primary">{money(p.amount_cents)}</td>
+                    <td className="px-3 py-2 text-cyan">{money(p.pay_amount_cents ?? p.amount_cents)}</td>
                     <td className="px-3 py-2">
                       <Badge value={String(p.status)} />
                       {claim ? <div><ClaimBadge name={String(claim.admin_name)} /></div> : null}
                       {viewer ? <div><PresenceBadge name={String(viewer.admin_name)} /></div> : null}
                     </td>
-                    <td className="px-3 py-2">{String(p.status) === "PENDING" ? <WaitBadge since={p.created_at} /> : null}</td>
+                    <td className="px-3 py-2">{["PENDING", "SUBMITTED", "UNDER_REVIEW"].includes(String(p.status)) ? <WaitBadge since={p.created_at} /> : null}</td>
                   </tr>
                 );
               })}
@@ -754,6 +857,9 @@ export function PaymentsPage() {
             <div>
               <p className="font-mono text-xs text-cyan">{String(detail.data.payment.public_code)}</p>
               <h3 className="text-lg">{money(detail.data.payment.amount_cents)}</h3>
+              {asInt(detail.data.payment.pay_amount_cents) !== asInt(detail.data.payment.amount_cents) ? (
+                <p className="text-xs text-warn">{ta("pay_to")}: {money(detail.data.payment.pay_amount_cents)}</p>
+              ) : null}
             </div>
             <div className="flex gap-1">
               <FavButton entity_type="payment" entity_id={open} label={String(detail.data.payment.public_code)} href="/admin/payments" />
@@ -761,12 +867,16 @@ export function PaymentsPage() {
             </div>
           </div>
           {detail.data.payment.screenshot_url ? <img src={String(detail.data.payment.screenshot_url)} alt="" className="max-h-80 rounded-lg" /> : <p className="text-muted">{ta("no_shot")}</p>}
-          <p>{money(detail.data.payment.amount_cents)} · Telegram ID {String(detail.data.payment.telegram_id)} · <Badge value={String(detail.data.payment.status)} /></p>
+          <p className="text-sm">User {String(detail.data.payment.user_id)} · Telegram {String(detail.data.payment.telegram_id)} {detail.data.payment.username ? `· @${String(detail.data.payment.username)}` : ""}</p>
+          {detail.data.payment.requisites_snapshot ? (
+            <pre className="overflow-x-auto rounded-md bg-raised p-2 text-[11px] text-muted">{JSON.stringify(detail.data.payment.requisites_snapshot, null, 2)}</pre>
+          ) : null}
+          <p>{money(detail.data.payment.amount_cents)} · <Badge value={String(detail.data.payment.status)} /></p>
           <div className="flex flex-wrap gap-2">
             <Button variant="ghost" onClick={async () => { await opsClaim({ data: { entityType: "payment", entityId: open } }); claims.reload(); }}>Взять в работу</Button>
             <Button variant="plain" onClick={async () => { await opsSnooze({ data: { entityType: "payment", entityId: open, until: new Date(Date.now() + 15 * 60000).toISOString(), note: "15 мин" } }); }}>Snooze 15 мин</Button>
           </div>
-          {String(detail.data.payment.status) === "PENDING" ? (
+          {["PENDING", "SUBMITTED", "UNDER_REVIEW"].includes(String(detail.data.payment.status)) ? (
             <>
               <Field label={ta("reject_reason")} value={reason} onChange={setReason} />
               <div className="flex gap-2">
@@ -1388,13 +1498,198 @@ export function RolesPage() {
   );
 }
 
+export function MethodsPage() {
+  const { data, reload } = useLoad(() => adminPaymentMethods());
+  const [form, setForm] = useState({ title: "", kind: "CARD", details: "", comment: "", status: "ACTIVE" });
+  const [editId, setEditId] = useState<string | undefined>();
+  return (
+    <div>
+      <PageTitle kicker={ta("methods_kicker")} title={ta("methods_title")} />
+      <div className="panel mb-6 grid gap-3 rounded-xl p-4 sm:grid-cols-2">
+        <Field label={ta("method_title")} value={form.title} onChange={(v) => setForm({ ...form, title: v })} />
+        <label className="text-xs text-muted">
+          {ta("method_kind")}
+          <select className="mt-1 min-h-11 w-full rounded-md border border-border bg-bg px-2" value={form.kind} onChange={(e) => setForm({ ...form, kind: e.target.value })}>
+            {["CARD", "CRYPTO", "BANK", "OTHER"].map((k) => <option key={k} value={k}>{k}</option>)}
+          </select>
+        </label>
+        <Field label={ta("method_details")} value={form.details} onChange={(v) => setForm({ ...form, details: v })} />
+        <Field label={ta("method_comment")} value={form.comment} onChange={(v) => setForm({ ...form, comment: v })} />
+        <Button
+          onClick={async () => {
+            if (!form.title.trim() || !form.details.trim()) return;
+            await adminSavePaymentMethod({ data: { id: editId, ...form } });
+            setForm({ title: "", kind: "CARD", details: "", comment: "", status: "ACTIVE" });
+            setEditId(undefined);
+            reload();
+          }}
+        >
+          {editId ? ta("save") : ta("add_method")}
+        </Button>
+      </div>
+      <div className="overflow-x-auto rounded-xl border border-border">
+        <table className="w-full min-w-[720px] text-sm">
+          <thead className="bg-panel text-xs text-muted">
+            <tr>
+              {[ta("method_title"), ta("method_kind"), ta("method_details"), ta("col_status"), ""].map((h) => (
+                <th key={h} className="px-3 py-2 text-left">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(data ?? []).map((m) => (
+              <tr key={String(m.id)} className="border-t border-border">
+                <td className="px-3 py-2">{String(m.title)}</td>
+                <td className="px-3 py-2">{String(m.kind)}</td>
+                <td className="px-3 py-2 font-mono text-xs">{String(m.details)}</td>
+                <td className="px-3 py-2"><Badge value={String(m.status)} /></td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="ghost" onClick={() => { setEditId(String(m.id)); setForm({ title: String(m.title), kind: String(m.kind), details: String(m.details), comment: String(m.comment ?? ""), status: String(m.status) }); }}>{ta("edit")}</Button>
+                    <Button
+                      variant="ghost"
+                      onClick={async () => {
+                        await adminSavePaymentMethod({
+                          data: {
+                            id: String(m.id),
+                            title: String(m.title),
+                            kind: String(m.kind),
+                            details: String(m.details),
+                            comment: String(m.comment ?? ""),
+                            status: m.status === "ACTIVE" ? "HIDDEN" : "ACTIVE",
+                          },
+                        });
+                        reload();
+                      }}
+                    >
+                      {m.status === "ACTIVE" ? ta("hide") : ta("show")}
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+export function KycPage() {
+  const [status, setStatus] = useState("UNDER_REVIEW");
+  const { data, reload } = useLoad(() => adminKyc({ data: { status } }), [status]);
+  const [open, setOpen] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [flash, setFlash] = useState<string | null>(null);
+  const row = (data ?? []).find((k) => String(k.id) === open);
+  function sla(submitted: unknown) {
+    if (!submitted) return null;
+    const ms = Date.now() - new Date(String(submitted)).getTime();
+    const hours = Math.floor(ms / 3600000);
+    const mins = Math.floor((ms % 3600000) / 60000);
+    return { hours, mins, over: hours >= 24 };
+  }
+  return (
+    <div className="lg:grid lg:grid-cols-[1fr_minmax(320px,420px)] lg:gap-4">
+      <div>
+        <PageTitle kicker={ta("kyc_kicker")} title={ta("kyc_title")} />
+        {flash ? <p className="mb-3 text-sm text-primary">{flash}</p> : null}
+        <div className="mb-3 flex flex-wrap gap-2">
+          {["UNDER_REVIEW", "APPROVED", "REJECTED", "DRAFT", "ALL"].map((s) => (
+            <Button key={s} variant={status === s ? "primary" : "ghost"} onClick={() => setStatus(s)}>{statusLabel(s)}</Button>
+          ))}
+        </div>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[720px] text-sm">
+            <thead className="bg-panel text-xs text-muted">
+              <tr>
+                {[ta("col_code"), ta("col_id"), ta("col_tg"), ta("col_name"), ta("col_status"), "SLA"].map((h) => (
+                  <th key={h} className="px-3 py-2 text-left">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {(data ?? []).map((k) => {
+                const wait = sla(k.submitted_at);
+                return (
+                  <tr key={String(k.id)} className={cn("cursor-pointer border-t border-border hover:bg-raised", wait?.over && "bg-danger/5")} onClick={() => setOpen(String(k.id))}>
+                    <td className="px-3 py-2 font-mono text-xs">{String(k.public_code)}</td>
+                    <td className="px-3 py-2 font-mono text-[11px]">{String(k.user_code ?? k.user_id)}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{String(k.telegram_id)}</td>
+                    <td className="px-3 py-2">{String(k.first_name ?? "")} {String(k.last_name ?? "")} {k.username ? `@${String(k.username)}` : ""}</td>
+                    <td className="px-3 py-2"><Badge value={String(k.status)} /></td>
+                    <td className="px-3 py-2 text-xs">{wait ? (wait.over ? ta("sla_exceeded") : `${wait.hours}ч ${wait.mins}м`) : "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {row ? (
+        <div className="panel mt-4 space-y-3 rounded-xl p-4 lg:mt-0">
+          <div className="flex justify-between">
+            <div>
+              <p className="font-mono text-xs text-cyan">{String(row.public_code)}</p>
+              <h3 className="text-lg">{String(row.first_name ?? "")} {String(row.last_name ?? "")}</h3>
+            </div>
+            <Button variant="ghost" onClick={() => setOpen(null)}>{ta("close")}</Button>
+          </div>
+          <p className="text-sm">User {String(row.user_code ?? row.user_id)} · Telegram {String(row.telegram_id)} {row.username ? `· @${String(row.username)}` : ""}</p>
+          <p className="text-sm">Отчество: {String(row.patronymic ?? "—")}</p>
+          <p className="text-sm">Дата рождения: {String(row.birth_date ?? "—")}</p>
+          {row.document_url ? <img src={String(row.document_url)} alt="" className="max-h-64 rounded-lg" /> : <p className="text-muted">Документ: {row.document_file_id ? String(row.document_file_id) : "нет"}</p>}
+          {row.video_url ? (
+            <video src={String(row.video_url)} controls className="max-h-64 w-full rounded-lg" />
+          ) : (
+            <p className="text-muted">Видео: {row.video_file_id ? String(row.video_file_id) : "нет"}</p>
+          )}
+          {String(row.status) === "UNDER_REVIEW" ? (
+            <>
+              <Field label={ta("kyc_reason")} value={reason} onChange={setReason} />
+              <div className="flex gap-2">
+                <Button
+                  onClick={async () => {
+                    const res = await adminReviewKyc({ data: { id: String(row.id), decision: "APPROVED" } });
+                    if (res && "ok" in res && res.ok) setFlash(ta("kyc_approve"));
+                    reload();
+                  }}
+                >
+                  {ta("kyc_approve")}
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={async () => {
+                    if (!reason.trim()) return;
+                    await adminReviewKyc({ data: { id: String(row.id), decision: "REJECTED", reason } });
+                    setReason("");
+                    reload();
+                  }}
+                >
+                  {ta("kyc_reject")}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted">{row.reject_reason ? String(row.reject_reason) : ta("pay_locked")}</p>
+          )}
+        </div>
+      ) : (
+        <div className="hidden rounded-xl border border-dashed border-border p-6 text-sm text-muted lg:block">
+          Выберите заявку KYC — детали справа.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SearchPage({ q }: { q: string }) {
   const { data } = useLoad(() => adminSearch({ data: { q } }), [q]);
   if (!data) return <Skeleton />;
   return (
     <div>
       <PageTitle kicker={ta("search_kicker")} title={q || ta("search")} />
-      {(["users", "orders", "products", "payments", "tickets", "couriers"] as const).map((k) => (
+      {(["users", "orders", "products", "payments", "tickets", "couriers", "kyc"] as const).map((k) => (
         <div key={k} className="mb-4">
           <h2 className="mb-2 text-sm uppercase tracking-widest text-muted">{
             k === "users" ? ta("nav_users") :
@@ -1402,6 +1697,7 @@ export function SearchPage({ q }: { q: string }) {
             k === "products" ? ta("nav_products") :
             k === "payments" ? ta("nav_payments") :
             k === "tickets" ? ta("nav_support") :
+            k === "kyc" ? ta("nav_kyc") :
             ta("nav_couriers")
           }</h2>
           <ul className="space-y-1 text-sm">

@@ -1,9 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { dashboardStats, listAdmins, requireAdmin, setAdminRole, countAdmins } from "./admin";
+import { dashboardStats, listAdmins, requireAdmin, setAdminRole } from "./admin";
 import { many, one, sql as getSql, asInt } from "./db";
 import { searchUsers, setDiscount, setUserStatus } from "./users";
-import { listPayments, manualBalance, reviewPayment, setSetting } from "./finance";
+import { listPayments, listPaymentMethods, manualBalance, reviewPayment, savePaymentMethod, setSetting } from "./finance";
 import { getProduct, saveProduct, setOrderStatus } from "./commerce";
 import { assignTask, mapPoints, reviewDelivery } from "./logistics";
 import { adminReply, globalSearch } from "./support";
@@ -14,6 +14,7 @@ import type { AdminRole, Json } from "./types";
 import { ensureSeed } from "./seed";
 import { ALL_PERMISSIONS } from "./rbac";
 import { createStaff, disableStaff, enableStaff, revokeStaffSessions, STAFF_ROLES } from "./staff";
+import { listKyc, reviewKyc } from "./kyc";
 import {
   checkAccountNow,
   checkBotNow,
@@ -47,39 +48,11 @@ function csvEscape(v: unknown): string {
   return s;
 }
 
-export const adminMe = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    const admin = await requireAdmin(context.userId);
-    return admin;
-  });
-
-export const authHasAdmin = createServerFn({ method: "GET" }).handler(async () => {
-  await ensureSeed();
-  const n = await countAdmins();
-  return { hasAdmin: n > 0 };
-});
-
 export const adminDashboard = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     await requireAdmin(context.userId, "dashboard");
     return dashboardStats();
-  });
-
-export const adminNavCounts = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    await requireAdmin(context.userId);
-    const db = await getSql();
-    const q = async (text: string) => asInt((await one<{ n: number }>(db, text))?.n);
-    const [orders, payments, errors, tickets] = await Promise.all([
-      q(`select count(*)::int as n from orders where status in ('NEW','PAID','PROCESSING')`),
-      q(`select count(*)::int as n from payments where status='PENDING'`),
-      q(`select count(*)::int as n from system_errors where created_at > now() - interval '24 hours'`),
-      q(`select count(*)::int as n from support_tickets where status in ('OPEN','WAITING')`),
-    ]);
-    return { orders, payments, errors, tickets };
   });
 
 export const adminUsers = createServerFn({ method: "GET" })
@@ -105,7 +78,13 @@ export const adminUser = createServerFn({ method: "GET" })
       many(db, `select * from reviews where user_id=$1 order by created_at desc`, [data.id]),
       many(db, `select * from support_tickets where user_id=$1 order by created_at desc`, [data.id]),
     ]);
-    return { user, orders, txns, pays, revs, tickets };
+    let kyc = orders.slice(0, 0);
+    try {
+      kyc = await many(db, `select * from kyc_submissions where user_id=$1 order by created_at desc limit 10`, [data.id]);
+    } catch {
+      kyc = [];
+    }
+    return { user, orders, txns, pays, revs, tickets, kyc };
   });
 
 export const adminUserAction = createServerFn({ method: "POST" })
@@ -276,7 +255,11 @@ export const adminCategories = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await requireAdmin(context.userId, "products.read");
     const db = await getSql();
-    return many(db, `select * from categories order by sort_order`);
+    return many(
+      db,
+      `select c.*, (select count(*)::int from products p where p.category_id=c.id and p.deleted_at is null) as product_count
+         from categories c order by sort_order, created_at`,
+    );
   });
 
 export const adminSaveCategory = createServerFn({ method: "POST" })
@@ -300,6 +283,21 @@ export const adminSaveCategory = createServerFn({ method: "POST" })
     }
     await audit(db, { actorId: admin.id, actorType: "ADMIN", action: "category.save", entity: "category", entityId: id });
     return { id };
+  });
+
+export const adminDeleteCategory = createServerFn({ method: "POST" })
+  .validator((d: { id: string }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "categories.write");
+    const db = await getSql();
+    const used = asInt(
+      (await one<{ n: number }>(db, `select count(*)::int as n from products where category_id=$1 and deleted_at is null`, [data.id]))?.n,
+    );
+    if (used > 0) return { ok: false as const, error: "HAS_PRODUCTS", count: used };
+    await db.query(`delete from categories where id=$1`, [data.id]);
+    await audit(db, { actorId: admin.id, actorType: "ADMIN", action: "category.delete", entity: "category", entityId: data.id });
+    return { ok: true as const };
   });
 
 export const adminOrders = createServerFn({ method: "GET" })
@@ -587,23 +585,6 @@ export const adminJobApp = createServerFn({ method: "POST" })
       data.status,
       data.note ?? null,
     ]);
-    return { ok: true };
-  });
-
-export const adminNotifications = createServerFn({ method: "GET" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    await requireAdmin(context.userId, "notifications.read");
-    const db = await getSql();
-    return many(db, `select * from notifications order by created_at desc limit 80`);
-  });
-
-export const adminReadNotifications = createServerFn({ method: "POST" })
-  .middleware([authMiddleware])
-  .handler(async ({ context }) => {
-    await requireAdmin(context.userId, "notifications.read");
-    const db = await getSql();
-    await db.query(`update notifications set read_at=now() where read_at is null`);
     return { ok: true };
   });
 
@@ -921,7 +902,7 @@ export const adminSearch = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context, data }) => {
     await requireAdmin(context.userId, "dashboard");
-    if (!data.q.trim()) return { users: [], orders: [], products: [], payments: [], tickets: [], couriers: [] };
+    if (!data.q.trim()) return { users: [], orders: [], products: [], payments: [], tickets: [], couriers: [], kyc: [] };
     return globalSearch(data.q.trim());
   });
 
@@ -980,4 +961,35 @@ export const publicStats = createServerFn({ method: "GET" }).handler(async () =>
   const products = asInt((await one<{ n: number }>(db, `select count(*)::int as n from products where published=true and deleted_at is null`))?.n);
   return { deals, products };
 });
+
+export const adminPaymentMethods = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await requireAdmin(context.userId, "payments.read");
+    return listPaymentMethods();
+  });
+
+export const adminSavePaymentMethod = createServerFn({ method: "POST" })
+  .validator((d: { id?: string; title: string; kind: string; details: string; comment?: string; status?: string; sort?: number }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "payments.review");
+    return savePaymentMethod({ ...data, adminId: admin.id });
+  });
+
+export const adminKyc = createServerFn({ method: "GET" })
+  .validator((d: { status?: string }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.userId, "kyc.read");
+    return listKyc(data.status);
+  });
+
+export const adminReviewKyc = createServerFn({ method: "POST" })
+  .validator((d: { id: string; decision: "APPROVED" | "REJECTED"; reason?: string }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "kyc.write");
+    return reviewKyc({ id: data.id, adminId: admin.id, decision: data.decision, reason: data.reason });
+  });
 

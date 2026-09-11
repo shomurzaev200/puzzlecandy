@@ -136,6 +136,7 @@ export async function processTelegramUpdate(opts: {
 
   const location = message.location as { latitude?: number; longitude?: number } | undefined;
   const photos = message.photo as Array<{ file_id: string }> | undefined;
+  const video = (message.video ?? message.video_note) as { file_id?: string } | undefined;
   let text = typeof message.text === "string" ? message.text : null;
   let startPayload: string | null = null;
   if (text?.startsWith("/start")) {
@@ -143,8 +144,8 @@ export async function processTelegramUpdate(opts: {
     text = "/start";
   }
   const callbackData = typeof callback?.data === "string" ? callback.data : null;
-  const fileId = photos?.at(-1)?.file_id ?? null;
-  const photoDataUrl = fileId ? await fileToDataUrl(opts.token, fileId) : null;
+  const fileId = photos?.at(-1)?.file_id ?? video?.file_id ?? null;
+  const photoDataUrl = photos?.at(-1)?.file_id ? await fileToDataUrl(opts.token, photos.at(-1)!.file_id) : null;
   const kind: BotKind = opts.kind === "support" || opts.kind === "other" ? "main" : opts.kind;
 
   const reply = await dispatchBot({

@@ -5,9 +5,11 @@ import { formatMoney, parseMoneyToCents, DEPOSIT_PRESETS_CENTS } from "./money";
 import { dealsCount, setLanguage, upsertShopUser } from "./users";
 import {
   attachPaymentScreenshot,
+  cancelPayment,
   createPaymentRequest,
   getSetting,
 } from "./finance";
+import { getOrCreateKycDraft, patchKyc, submitKyc } from "./kyc";
 import {
   addReview,
   getProduct,
@@ -26,6 +28,7 @@ import {
   upsertCourier,
 } from "./logistics";
 import { applyJob, openTicket } from "./support";
+import { logError } from "./audit";
 import type { BotIncoming, BotKind, BotReply, InlineButton, KeyboardButton, Lang, Json } from "./types";
 
 type Session = {
@@ -85,6 +88,7 @@ function mainKb(lang: Lang): KeyboardButton[][] {
     [{ text: t("btn_catalog", lang) }],
     [{ text: t("btn_deposit", lang) }],
     [{ text: t("btn_jobs", lang) }, { text: t("btn_reviews", lang) }],
+    [{ text: t("btn_kyc", lang) }],
     [{ text: t("btn_rules", lang) }, { text: t("btn_info", lang) }],
     [{ text: t("btn_orders", lang) }],
     [{ text: t("btn_help", lang) }],
@@ -152,7 +156,14 @@ export async function dispatchBot(input: BotIncoming): Promise<BotReply> {
     else if (input.bot === "courier") out = await handleCourierBot(session, input);
     else out = await handleMainBot(session, input);
   } catch (err) {
-    out = reply([{ text: err instanceof Error ? err.message : "Error" }]);
+    await logError(null, {
+      level: "ERROR",
+      service: "telegram",
+      event: "dispatch",
+      message: err instanceof Error ? err.message : String(err),
+      context: { bot: input.bot, telegramId: input.telegramId },
+    });
+    out = reply([{ text: t("handler_error", session.language) }]);
   }
   await saveSession(session);
   for (const m of out.messages) {
@@ -226,7 +237,25 @@ async function handleMainBot(s: Session, input: BotIncoming): Promise<BotReply> 
       keyboard: navKb(s.language),
     });
   }
+  if (cb.startsWith("pcopy:")) {
+    const db = await getSql();
+    const pay = await one<{ requisites_snapshot: unknown }>(db, `select requisites_snapshot from payments where id=$1`, [
+      cb.slice(6),
+    ]);
+    const snap = asJson(pay?.requisites_snapshot, {} as Record<string, Json>);
+    return reply([{ text: String(snap.details ?? t("pay_no_methods", s.language)) }], { keyboard: navKb(s.language) });
+  }
   if (cb.startsWith("job:")) return showJob(s, cb.slice(4));
+  if (cb.startsWith("paid:")) {
+    s.state = "DEP_SHOT";
+    s.payload = { ...s.payload, paymentId: cb.slice(5) };
+    return reply([{ text: t("pay_need_shot", s.language) }], { keyboard: navKb(s.language), requestPhoto: true });
+  }
+  if (cb.startsWith("pcancel:")) {
+    await cancelPayment({ paymentId: cb.slice(8), userId: user.id });
+    s.state = "MAIN";
+    return reply([{ text: t("pay_cancelled", s.language) }], { keyboard: mainKb(s.language) });
+  }
   if (cb.startsWith("apply:")) {
     const res = await applyJob({ userId: user.id, jobId: cb.slice(6) });
     return reply([{ text: res.ok ? t("job_applied", s.language) : t("unknown", s.language) }], { keyboard: mainKb(s.language) });
@@ -247,6 +276,8 @@ async function handleMainBot(s: Session, input: BotIncoming): Promise<BotReply> 
   if (isCmd(text, s.language, "btn_rules")) return pageMenu(s, "rules");
   if (isCmd(text, s.language, "btn_info")) return pageMenu(s, "info");
   if (isCmd(text, s.language, "btn_orders")) return ordersMenu(s, user.id);
+  if (isCmd(text, s.language, "btn_kyc")) return kycStart(s, user.id);
+  if (s.state.startsWith("KYC_")) return kycStep(s, user.id, input);
   if (isCmd(text, s.language, "btn_help")) {
     s.state = "SUPPORT";
     return reply([{ text: t("support_prompt", s.language) }], { keyboard: navKb(s.language) });
@@ -456,16 +487,37 @@ async function depositMenu(s: Session): Promise<BotReply> {
 
 async function startDeposit(s: Session, userId: string, amount: number): Promise<BotReply> {
   if (!amount) return depositMenu(s);
-  const created = await createPaymentRequest({ userId, amountCents: amount });
+  const created = await createPaymentRequest({
+    userId,
+    amountCents: amount,
+    idempotencyKey: `dep:${userId}:${amount}:${Math.floor(Date.now() / 30000)}`,
+  });
   s.state = "DEP_SHOT";
   s.payload = { paymentId: created.id, code: created.publicCode };
+  const diff =
+    created.payAmountCents !== created.amountCents
+      ? t("deposit_diff", s.language, { delta: formatMoney(created.payAmountCents - created.amountCents) })
+      : "";
+  const method = created.method;
   return reply(
     [
       {
         text: t("deposit_created", s.language, {
           amount: formatMoney(created.amountCents),
+          pay: formatMoney(created.payAmountCents),
           code: created.publicCode,
+          diff,
+          method: method?.title ?? "—",
+          requisites: method?.details ?? t("pay_no_methods", s.language),
+          comment: method?.comment ?? "",
         }),
+        inline: [
+          [
+            { text: t("pay_btn_copy", s.language), data: `pcopy:${created.id}` },
+            { text: t("pay_btn_paid", s.language), data: `paid:${created.id}` },
+            { text: t("pay_btn_cancel", s.language), data: `pcancel:${created.id}` },
+          ],
+        ],
       },
     ],
     { keyboard: navKb(s.language), requestPhoto: true },
@@ -567,22 +619,126 @@ async function handlePaymentBot(s: Session, input: BotIncoming): Promise<BotRepl
   });
   s.user_id = user.id;
   const text = (input.text ?? "").trim();
+  const cb = input.callbackData ?? "";
+  const lang = s.language;
+  const menu = reply([{ text: t("pay_menu", lang) }], {
+    keyboard: [[{ text: t("pay_btn_topup", lang) }], [{ text: t("pay_btn_list", lang) }], [{ text: t("pay_btn_profile", lang) }]],
+  });
+
   if (text === "/start" || s.state === "BOOT") {
     s.state = "PAY";
-    return reply([{ text: t("payment_bot_hi", s.language) }]);
+    return menu;
+  }
+  if (cb.startsWith("pcopy:")) {
+    const db = await getSql();
+    const pay = await one<{ requisites_snapshot: unknown }>(db, `select requisites_snapshot from payments where id=$1`, [
+      cb.slice(6),
+    ]);
+    const snap = asJson(pay?.requisites_snapshot, {} as Record<string, Json>);
+    return reply([{ text: String(snap.details ?? t("pay_no_methods", lang)) }], { keyboard: navKb(lang) });
+  }
+  if (cb.startsWith("paid:")) {
+    s.state = "PAY_SHOT";
+    s.payload = { ...s.payload, paymentId: cb.slice(5) };
+    return reply([{ text: t("pay_need_shot", lang) }], { requestPhoto: true, keyboard: navKb(lang) });
+  }
+  if (cb.startsWith("pcancel:")) {
+    await cancelPayment({ paymentId: cb.slice(8), userId: user.id });
+    s.state = "PAY";
+    return reply([{ text: t("pay_cancelled", lang) }], {
+      keyboard: [[{ text: t("pay_btn_topup", lang) }], [{ text: t("pay_btn_list", lang) }]],
+    });
+  }
+  if (isCmd(text, lang, "pay_btn_topup")) {
+    s.state = "PAY_AMOUNT";
+    return reply([{ text: t("pay_enter_amount", lang) }], { keyboard: navKb(lang) });
+  }
+  if (isCmd(text, lang, "pay_btn_list")) {
+    const db = await getSql();
+    const rows = await many<{ public_code: string; status: string; amount_cents: number; pay_amount_cents: number | null }>(
+      db,
+      `select public_code, status, amount_cents, pay_amount_cents from payments where user_id=$1 order by created_at desc limit 10`,
+      [user.id],
+    );
+    if (!rows.length) return reply([{ text: "—" }], { keyboard: [[{ text: t("pay_btn_topup", lang) }]] });
+    const lines = rows.map((r) => `${r.public_code} · ${r.status} · ${formatMoney(asInt(r.amount_cents))}`);
+    return reply([{ text: lines.join("\n") }], { keyboard: [[{ text: t("pay_btn_topup", lang) }]] });
+  }
+  if (isCmd(text, lang, "pay_btn_profile")) {
+    return reply(
+      [{ text: `ID: ${user.public_code ?? user.id}\nTelegram: ${user.telegram_id}\n@${user.username ?? "—"}\n${formatMoney(asInt(user.balance_cents))}` }],
+      { keyboard: [[{ text: t("pay_btn_topup", lang) }]] },
+    );
+  }
+  if (s.state === "PAY_AMOUNT" && text) {
+    const centsVal = parseMoneyToCents(text);
+    if (!centsVal) return reply([{ text: t("pay_enter_amount", lang) }], { keyboard: navKb(lang) });
+    return startDeposit(s, user.id, centsVal);
   }
   const code = text.match(/PAY-\d{8}-\d+/i)?.[0]?.toUpperCase();
   if (code) s.payload = { ...s.payload, code };
   if (input.photoDataUrl || input.telegramFileId) {
     const res = await attachPaymentScreenshot({
+      paymentId: s.payload.paymentId ? String(s.payload.paymentId) : undefined,
       publicCode: String(s.payload.code ?? code ?? ""),
       userId: user.id,
       dataUrl: input.photoDataUrl,
       telegramFileId: input.telegramFileId,
     });
-    return reply([{ text: res.ok ? t("screenshot_ok", s.language) : t("unknown", s.language) }], { requestPhoto: true });
+    s.state = "PAY";
+    return reply([{ text: res.ok ? t("screenshot_ok", lang) : t("unknown", lang) }], {
+      keyboard: [[{ text: t("pay_btn_topup", lang) }], [{ text: t("pay_btn_list", lang) }]],
+    });
   }
-  return reply([{ text: t("payment_bot_hi", s.language) }], { requestPhoto: true });
+  return menu;
+}
+
+async function kycStart(s: Session, userId: string): Promise<BotReply> {
+  const draft = await getOrCreateKycDraft(userId);
+  s.state = "KYC_FN";
+  s.payload = { ...s.payload, kycId: draft.id };
+  return reply([{ text: t("kyc_intro", s.language) }], { keyboard: navKb(s.language) });
+}
+
+async function kycStep(s: Session, userId: string, input: BotIncoming): Promise<BotReply> {
+  const kycId = String(s.payload.kycId ?? "");
+  const text = (input.text ?? "").trim();
+  const lang = s.language;
+  if (!kycId) return kycStart(s, userId);
+  if (s.state === "KYC_FN" && text) {
+    await patchKyc(kycId, userId, { first_name: text });
+    s.state = "KYC_LN";
+    return reply([{ text: t("kyc_last", lang) }], { keyboard: navKb(lang) });
+  }
+  if (s.state === "KYC_LN" && text) {
+    await patchKyc(kycId, userId, { last_name: text });
+    s.state = "KYC_PAT";
+    return reply([{ text: t("kyc_pat", lang) }], { keyboard: navKb(lang) });
+  }
+  if (s.state === "KYC_PAT" && text) {
+    await patchKyc(kycId, userId, { patronymic: text.toLowerCase() === "нет" || text.toLowerCase() === "none" ? "" : text });
+    s.state = "KYC_DOB";
+    return reply([{ text: t("kyc_dob", lang) }], { keyboard: navKb(lang) });
+  }
+  if (s.state === "KYC_DOB" && text) {
+    await patchKyc(kycId, userId, { birth_date: text });
+    s.state = "KYC_DOC";
+    return reply([{ text: t("kyc_doc", lang) }], { keyboard: navKb(lang), requestPhoto: true });
+  }
+  if (s.state === "KYC_DOC" && (input.photoDataUrl || input.telegramFileId)) {
+    await patchKyc(kycId, userId, { document_url: input.photoDataUrl, document_file_id: input.telegramFileId });
+    s.state = "KYC_VIDEO";
+    return reply([{ text: t("kyc_video", lang) }], { keyboard: navKb(lang) });
+  }
+  if (s.state === "KYC_VIDEO" && (input.telegramFileId || input.photoDataUrl || text)) {
+    await patchKyc(kycId, userId, { video_url: input.photoDataUrl ?? text, video_file_id: input.telegramFileId });
+    const res = await submitKyc(kycId, userId);
+    s.state = "MAIN";
+    return reply([{ text: res.ok ? t("kyc_sent", lang, { code: res.publicCode }) : t("kyc_incomplete", lang) }], {
+      keyboard: mainKb(lang),
+    });
+  }
+  return reply([{ text: t("unknown", lang) }], { keyboard: navKb(lang) });
 }
 
 function courierKb(lang: Lang): KeyboardButton[][] {

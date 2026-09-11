@@ -15,6 +15,8 @@ export const ALL_PERMISSIONS: Permission[] = [
   "orders.write",
   "payments.read",
   "payments.review",
+  "kyc.read",
+  "kyc.write",
   "transactions.read",
   "couriers.read",
   "couriers.write",
@@ -112,6 +114,14 @@ const ROLE_PERMS: Record<AdminRole, Permission[]> = {
     "support.write",
     "notifications.read",
   ],
+  KYC_REVIEWER: [
+    "dashboard",
+    "users.read",
+    "kyc.read",
+    "kyc.write",
+    "notifications.read",
+  ],
+  MANAGER: ALL_PERMISSIONS.filter((p) => p !== "roles.write" && p !== "settings.secrets" && p !== "users.balance"),
 };
 
 export function permissionsFor(role: AdminRole): Permission[] {

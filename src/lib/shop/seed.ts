@@ -27,6 +27,15 @@ export async function ensureSeed(): Promise<void> {
   g.__puzzlcandySeeded__ ??= (async () => {
     const db = await getClient();
     await seedAll(db);
+    const gp = globalThis as typeof globalThis & { __pcBotPollTimer?: boolean };
+    if (!gp.__pcBotPollTimer) {
+      gp.__pcBotPollTimer = true;
+      setTimeout(() => {
+        void import("./telegram-poll")
+          .then((m) => m.startBotPolling())
+          .catch((err: unknown) => console.error("[telegram] poller schedule failed:", err));
+      }, 3000);
+    }
   })().catch((err) => {
     g.__puzzlcandySeeded__ = undefined;
     throw err;
@@ -88,6 +97,13 @@ async function seedAll(db: Sql): Promise<void> {
   await db.query(`update bot_accounts set username='PuzzleCandyShop', title='PUZZLECANDY' where kind='main'`);
   await db.query(`update bot_accounts set username='PuzzleCandyPay', title='PUZZLECANDY — платежи' where kind='payment'`);
   await db.query(`update bot_accounts set username='PuzzleCandyCourier', title='PUZZLECANDY — курьеры' where kind='courier'`);
+
+  await db.query(
+    `insert into payment_methods (id, title, kind, details, comment, status, sort_order)
+     values ($1,'Uzcard','CARD','XXXX XXXX XXXX XXXX','Переведите точную сумму к оплате одним платежом.','ACTIVE',0)
+     on conflict (id) do nothing`,
+    ["pm_default_card"],
+  ).catch(() => undefined);
 
   const pages = [
     {
