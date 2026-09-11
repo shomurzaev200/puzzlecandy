@@ -1,4 +1,4 @@
-import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -72,32 +72,10 @@ function Login() {
     <main className="grid-bg relative min-h-screen px-4 py-12">
       <div className="scanlines absolute inset-0 opacity-40" />
       <div className="relative mx-auto w-full max-w-md space-y-6">
-        <Link to="/" className="font-mono text-xs tracking-[0.3em] text-primary">
-          {ta("login_kicker")}
-        </Link>
+        <p className="font-mono text-xs tracking-[0.3em] text-primary">{ta("login_kicker")}</p>
         <h1 className="text-3xl font-semibold tracking-tight">{ta("login_title")}</h1>
         <p className="text-sm text-muted">{hasAdmin ? ta("login_copy_existing") : ta("login_copy")}</p>
         <div className="panel space-y-3 rounded-xl p-5">
-          {authEnabled ? (
-            GROK_PROVIDERS.map((p) => (
-              <Button
-                key={p.providerId}
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={() => signIn(p.providerId, { callbackURL: "/admin" })}
-              >
-                {ta("continue_with", { p: p.label })}
-              </Button>
-            ))
-          ) : (
-            <p className="text-sm text-muted">{ta("signin_disabled")}</p>
-          )}
-          <div className="flex items-center gap-3 py-2 text-[11px] tracking-widest text-faint uppercase">
-            <span className="h-px flex-1 bg-border" />
-            {ta("email")}
-            <span className="h-px flex-1 bg-border" />
-          </div>
           <form className="space-y-3" onSubmit={onEmail}>
             <label className="block text-xs text-muted">
               {ta("email")}
@@ -107,6 +85,7 @@ function Login() {
                 onChange={(e) => setEmail(e.target.value)}
                 type="email"
                 required
+                autoFocus
                 autoComplete="username"
               />
             </label>
@@ -138,6 +117,26 @@ function Login() {
           ) : (
             <p className="text-xs text-muted">{ta("signup_closed")}</p>
           )}
+          {authEnabled && GROK_PROVIDERS.length ? (
+            <>
+              <div className="flex items-center gap-3 py-2 text-[11px] tracking-widest text-faint uppercase">
+                <span className="h-px flex-1 bg-border" />
+                {ta("or")}
+                <span className="h-px flex-1 bg-border" />
+              </div>
+              {GROK_PROVIDERS.map((p) => (
+                <Button
+                  key={p.providerId}
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => signIn(p.providerId, { callbackURL: "/admin" })}
+                >
+                  {ta("continue_with", { p: p.label })}
+                </Button>
+              ))}
+            </>
+          ) : null}
         </div>
       </div>
     </main>

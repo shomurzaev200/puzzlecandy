@@ -3,6 +3,7 @@ import { asInt, many, one, sql as getSql } from "./db";
 import { nid } from "./ids";
 import { audit, logError } from "./audit";
 import { getSetting, setSetting } from "./finance";
+import { telegramApi } from "./telegram-api";
 
 export type BotPurpose = "main" | "payment" | "courier" | "support" | "other";
 export type AccountPurpose = "payment" | "operator" | "courier" | "support" | "work" | "other";
@@ -27,23 +28,8 @@ function safeEqualHex(a: string, b: string): boolean {
   return timingSafeEqual(left, right);
 }
 
-async function telegramApi(token: string, method: string, body?: Record<string, unknown>) {
-  const url = `https://api.telegram.org/bot${token}/${method}`;
-  const res = await fetch(url, {
-    method: body ? "POST" : "GET",
-    headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(10000),
-  });
-  const json = (await res.json().catch(() => null)) as
-    | { ok: boolean; result?: Record<string, unknown>; description?: string }
-    | null;
-  if (!json || !json.ok) {
-    const err = new Error("TELEGRAM_UNREACHABLE");
-    (err as Error & { detail?: string }).detail = json?.description ?? `HTTP ${res.status}`;
-    throw err;
-  }
-  return json.result ?? {};
+async function telegramCall(token: string, method: string, body?: Record<string, unknown>) {
+  return (await telegramApi(token, method, body)) as Record<string, unknown>;
 }
 
 export async function verifyTelegramToken(token: string): Promise<{
@@ -57,7 +43,7 @@ export async function verifyTelegramToken(token: string): Promise<{
     return { ok: false, error: "Некорректный формат токена." };
   }
   try {
-    const me = await telegramApi(trimmed, "getMe");
+    const me = await telegramCall(trimmed, "getMe");
     return {
       ok: true,
       username: typeof me.username === "string" ? me.username : "unknown",
@@ -73,7 +59,11 @@ export async function verifyTelegramToken(token: string): Promise<{
 async function originHint(): Promise<string | null> {
   const secrets = await getSetting<{ public_origin?: string }>("secrets", {});
   if (secrets.public_origin) return secrets.public_origin.replace(/\/$/, "");
-  const host = process.env.APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+  const host =
+    process.env.APP_URL ||
+    process.env.BETTER_AUTH_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    process.env.VERCEL_URL;
   if (!host) return null;
   return host.startsWith("http") ? host.replace(/\/$/, "") : `https://${host}`;
 }
@@ -110,16 +100,23 @@ export async function saveVerifiedBot(opts: {
   );
   let webhook = false;
   const origin = await originHint();
-  if (origin) {
+  if (origin?.startsWith("https://")) {
     try {
       const url = `${origin.replace(/\/$/, "")}/api/telegram/${id}`;
-      await telegramApi(opts.token.trim(), "setWebhook", { url, drop_pending_updates: false });
+      await telegramCall(opts.token.trim(), "setWebhook", { url, drop_pending_updates: false });
       await db.query(`update bot_accounts set webhook_url=$2, last_webhook_at=now() where id=$1`, [id, url]);
       webhook = true;
     } catch (err) {
       const detail = (err as Error & { detail?: string }).detail ?? "webhook failed";
-      await db.query(`update bot_accounts set last_error=$2 where id=$1`, [id, detail]);
+      await db.query(`update bot_accounts set last_error=$2, webhook_url='polling' where id=$1`, [id, detail]);
     }
+  } else {
+    try {
+      await telegramCall(opts.token.trim(), "deleteWebhook", { drop_pending_updates: false });
+    } catch {
+      /* polling */
+    }
+    await db.query(`update bot_accounts set webhook_url='polling', last_error=null where id=$1`, [id]);
   }
   await audit(db, {
     actorId: opts.adminId,
@@ -179,19 +176,26 @@ export async function reconnectBot(botId: string, adminId: string) {
   const secret = await one<{ token_enc: string }>(db, `select token_enc from bot_secrets where bot_id=$1`, [botId]);
   if (!secret) return { ok: false as const, error: "Токен не задан" };
   const origin = await originHint();
-  if (origin) {
+  if (origin?.startsWith("https://")) {
     try {
       const url = `${origin.replace(/\/$/, "")}/api/telegram/${botId}`;
-      await telegramApi(secret.token_enc, "setWebhook", { url, drop_pending_updates: false });
+      await telegramCall(secret.token_enc, "setWebhook", { url, drop_pending_updates: false });
       await db.query(`update bot_accounts set webhook_url=$2, last_webhook_at=now(), last_error=null, status='ONLINE' where id=$1`, [
         botId,
         url,
       ]);
     } catch (err) {
       const detail = (err as Error & { detail?: string }).detail ?? "webhook failed";
-      await db.query(`update bot_accounts set last_error=$2 where id=$1`, [botId, detail]);
+      await db.query(`update bot_accounts set last_error=$2, webhook_url='polling' where id=$1`, [botId, detail]);
       return { ok: false as const, error: detail };
     }
+  } else {
+    try {
+      await telegramCall(secret.token_enc, "deleteWebhook", { drop_pending_updates: false });
+    } catch {
+      /* polling */
+    }
+    await db.query(`update bot_accounts set webhook_url='polling', last_error=null, status='ONLINE' where id=$1`, [botId]);
   }
   await audit(db, { actorId: adminId, actorType: "ADMIN", action: "bot.reconnect", entity: "bot", entityId: botId });
   return checked;
@@ -202,7 +206,7 @@ export async function setBotEnabled(botId: string, enabled: boolean, adminId: st
   const secret = await one<{ token_enc: string }>(db, `select token_enc from bot_secrets where bot_id=$1`, [botId]);
   if (!enabled && secret) {
     try {
-      await telegramApi(secret.token_enc, "deleteWebhook", { drop_pending_updates: false });
+      await telegramCall(secret.token_enc, "deleteWebhook", { drop_pending_updates: false });
     } catch {
       /* still disable locally */
     }
@@ -226,7 +230,7 @@ export async function deleteBot(botId: string, adminId: string) {
   const secret = await one<{ token_enc: string }>(db, `select token_enc from bot_secrets where bot_id=$1`, [botId]);
   if (secret) {
     try {
-      await telegramApi(secret.token_enc, "deleteWebhook", { drop_pending_updates: true });
+      await telegramCall(secret.token_enc, "deleteWebhook", { drop_pending_updates: true });
     } catch {
       /* continue */
     }

@@ -47,6 +47,14 @@ function pgliteBootstrapPlugin(): Plugin {
         console.error("[app-builder] DB bootstrap failed:", err);
         throw err;
       }
+      try {
+        const poll = (await server.ssrLoadModule("/src/lib/shop/telegram-poll.ts")) as {
+          startBotPolling?: () => void;
+        };
+        poll.startBotPolling?.();
+      } catch (err) {
+        console.error("[telegram] poller start failed:", err);
+      }
     },
   };
 }

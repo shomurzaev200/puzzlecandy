@@ -77,7 +77,7 @@ test("shop strings are PUZZLECANDY, never DAZZLE", () => {
   const welcome = STRINGS.welcome.ru;
   assert.match(welcome, /PUZZLECANDY/);
   assert.equal(welcome.includes("DAZZLE"), false);
-  assert.match(STRINGS.btn_jobs.ru, /ИЩУ РАБОТУ/);
+  assert.match(STRINGS.btn_jobs.ru, /РАБОТА/);
   assert.match(STRINGS.btn_exchange.ru, /ОБМЕННИК/);
 });
 

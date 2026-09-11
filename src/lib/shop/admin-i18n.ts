@@ -353,6 +353,7 @@ export const ADMIN: Record<string, Pack> = {
   have_account: { ru: "Уже есть аккаунт? Войти", uz: "Akkount bormi? Kirish", en: "Have an account? Sign in" },
   create_first: { ru: "Создать первый аккаунт администратора", uz: "Birinchi admin", en: "Create first admin account" },
   continue_with: { ru: "Продолжить через {p}", uz: "{p} orqali", en: "Continue with {p}" },
+  or: { ru: "или", uz: "yoki", en: "or" },
   signin_disabled: { ru: "Вход отключён.", uz: "Kirish o‘chiq.", en: "Sign-in is disabled." },
   login_failed: { ru: "Не удалось войти", uz: "Kirib bo‘lmadi", en: "Sign-in failed" },
 
