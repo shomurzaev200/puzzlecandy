@@ -78,6 +78,9 @@ import {
   adminSearch,
   adminSetOrderStatus,
   adminSetRole,
+  adminCreateStaff,
+  adminDisableStaff,
+  adminRevokeStaffSessions,
   adminSettings,
   adminTicket,
   adminTicketReply,
@@ -1162,7 +1165,8 @@ function SoundSettingsPanel() {
   }, []);
   return (
     <div className="panel mt-6 space-y-3 rounded-xl p-4">
-      <p className="text-sm">Настройки → Уведомления → Звуковые сигналы</p>
+      <p className="text-sm">Профиль → Настройки уведомлений</p>
+      <p className="text-xs text-muted">Звуковые сигналы не выводятся в верхней панели. Здесь задаётся громкость и включение.</p>
       <label className="flex min-h-11 items-center gap-2 text-sm">
         <input
           type="checkbox"
@@ -1256,19 +1260,130 @@ export function ErrorsPage() {
 
 export function RolesPage() {
   const { data, reload } = useLoad(() => adminRoles());
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("FINANCE_ADMIN");
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const assignable = ["FINANCE_ADMIN", "ORDER_OPERATOR", "COURIER_DISPATCHER", "SUPPORT_AGENT", "ADMIN", "MODERATOR", "SUPPORT", "FINANCE", "COURIER_MANAGER"];
+  async function add() {
+    setBusy(true);
+    try {
+      const r = await adminCreateStaff({ data: { email, name: name || email.split("@")[0] || "Оператор", role: role as never, generatePassword: true } });
+      if (r.ok && r.password) setIssued({ email: r.email, password: r.password });
+      setOpen(false);
+      setEmail("");
+      setName("");
+      reload();
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div>
-      <PageTitle kicker={ta("roles_kicker")} title={ta("roles_title")} />
+      <PageTitle
+        kicker={ta("roles_kicker")}
+        title={ta("roles_title")}
+        actions={
+          <Button type="button" onClick={() => setOpen(true)}>
+            + {ta("staff_add")}
+          </Button>
+        }
+      />
+      {issued ? (
+        <div className="panel mb-4 rounded-xl border border-primary/40 p-4">
+          <p className="text-sm">{ta("staff_pass_once")}</p>
+          <p className="mt-2 font-mono text-sm">{issued.email}</p>
+          <p className="font-mono text-lg text-primary">{issued.password}</p>
+          <Button
+            type="button"
+            variant="ghost"
+            className="mt-2"
+            onClick={() => {
+              void navigator.clipboard.writeText(issued.password);
+            }}
+          >
+            {ta("staff_copy_pass")}
+          </Button>
+        </div>
+      ) : null}
       {(data?.admins ?? []).map((a) => (
         <div key={String(a.id)} className="panel mb-2 flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3">
-          <p>{String(a.email ?? a.name)}</p>
-          <select className="min-h-11 rounded-md border border-border bg-bg px-2" defaultValue={String(a.role)} onChange={async (e) => { await adminSetRole({ data: { id: String(a.id), role: e.target.value as never } }); reload(); }}>
-            {["SUPER_ADMIN", "ADMIN", "MODERATOR", "SUPPORT", "FINANCE", "COURIER_MANAGER"].map((r) => (
-              <option key={r} value={r}>{roleLabel(r)}</option>
-            ))}
-          </select>
+          <div>
+            <p>{String(a.email ?? a.name)}</p>
+            <p className="text-[11px] text-muted">
+              {String(a.status) === "ACTIVE" ? ta("staff_active") : ta("staff_blocked")}
+              {" · "}
+              {ta("staff_created")}: {String(a.created_at ?? "").slice(0, 16)}
+              {" · "}
+              {ta("staff_last")}: {String(a.last_login_at ?? "—").slice(0, 16)}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="min-h-11 rounded-md border border-border bg-bg px-2"
+              defaultValue={String(a.role)}
+              onChange={async (e) => {
+                await adminSetRole({ data: { id: String(a.id), role: e.target.value as never } });
+                reload();
+              }}
+            >
+              {["SUPER_ADMIN", ...assignable].map((r) => (
+                <option key={r} value={r}>{roleLabel(r)}</option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={async () => {
+                await adminDisableStaff({ data: { id: String(a.id), enable: String(a.status) !== "ACTIVE" } });
+                reload();
+              }}
+            >
+              {String(a.status) === "ACTIVE" ? ta("staff_disable") : ta("staff_enable")}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={async () => {
+                await adminRevokeStaffSessions({ data: { userId: String(a.user_id) } });
+              }}
+            >
+              {ta("staff_sessions")}
+            </Button>
+          </div>
         </div>
       ))}
+      {open ? (
+        <div className="fixed inset-0 z-40 grid place-items-center bg-bg/70 p-4">
+          <div className="panel w-full max-w-md rounded-xl p-5">
+            <p className="mb-3 text-lg">{ta("staff_add")}</p>
+            <label className="block text-xs text-muted">
+              {ta("email")}
+              <input className="mt-1 min-h-11 w-full rounded-md border border-border bg-bg px-3" value={email} onChange={(e) => setEmail(e.target.value)} type="email" required />
+            </label>
+            <label className="mt-3 block text-xs text-muted">
+              ФИО / никнейм
+              <input className="mt-1 min-h-11 w-full rounded-md border border-border bg-bg px-3" value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="mt-3 block text-xs text-muted">
+              Роль
+              <select className="mt-1 min-h-11 w-full rounded-md border border-border bg-bg px-2" value={role} onChange={(e) => setRole(e.target.value)}>
+                {assignable.map((r) => (
+                  <option key={r} value={r}>{roleLabel(r)}</option>
+                ))}
+              </select>
+            </label>
+            <p className="mt-3 text-xs text-muted">{ta("staff_gen_pass")}</p>
+            <p className="text-xs text-muted">{ta("staff_must_change")}</p>
+            <div className="mt-4 flex gap-2">
+              <Button type="button" disabled={busy || !email} onClick={() => void add()}>{ta("create")}</Button>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>{ta("cancel")}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

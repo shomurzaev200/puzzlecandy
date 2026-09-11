@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Check, Copy, ExternalLink, Star, Volume2, VolumeX, X } from "lucide-react";
+import { Bell, Check, Copy, ExternalLink, Star, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,18 +8,14 @@ import {
   loadDensity,
   loadFavorites,
   loadRecents,
-  loadSoundPrefs,
-  playPing,
   pushRecent,
   saveDensity,
-  saveSoundPrefs,
   slaLevel,
   slaMinutes,
   telegramHref,
   toggleFavorite,
   type Density,
   type RecentItem,
-  type SoundPrefs,
 } from "@/lib/shop/ops-client";
 import { adminNotifications, adminReadNotifications } from "@/lib/shop/fn-admin";
 import { opsCanned } from "@/lib/shop/fn-ops";
@@ -283,30 +279,18 @@ export function useRowNav<T>(rows: T[], open: (row: T) => void) {
 export function InboxBell({ unread }: { unread: number }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<Array<Record<string, unknown>>>([]);
-  const [sound, setSound] = useState<SoundPrefs>(() => ({
-    enabled: true,
-    volume: 40,
-    events: [],
-  }));
-  useEffect(() => {
-    setSound(loadSoundPrefs());
-  }, []);
   useEffect(() => {
     if (!open) return;
     adminNotifications()
       .then((n) => setItems(n as Array<Record<string, unknown>>))
       .catch(() => setItems([]));
   }, [open]);
-  function persist(next: SoundPrefs) {
-    setSound(next);
-    saveSoundPrefs(next);
-  }
   return (
     <div className="relative">
       <button
         type="button"
         className="relative grid size-11 place-items-center rounded-md border border-border text-muted"
-        aria-label="Inbox"
+        aria-label="Входящие"
         onClick={() => setOpen((v) => !v)}
       >
         <Bell className="size-4" />
@@ -319,7 +303,7 @@ export function InboxBell({ unread }: { unread: number }) {
       {open ? (
         <div className="absolute right-0 z-40 mt-2 w-[min(380px,88vw)] overflow-hidden rounded-xl border border-border bg-surface shadow-glow">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
-            <p className="text-sm">Inbox</p>
+            <p className="text-sm">Входящие</p>
             <button
               type="button"
               className="text-xs text-cyan"
@@ -329,36 +313,6 @@ export function InboxBell({ unread }: { unread: number }) {
             >
               Прочитать все
             </button>
-          </div>
-          <div className="border-b border-border px-3 py-3">
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-faint">Звуковые сигналы</p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                className="grid size-9 place-items-center rounded-md border border-border"
-                onClick={() => persist({ ...sound, enabled: !sound.enabled })}
-                aria-label={sound.enabled ? ta("sound_on") : ta("sound_off")}
-              >
-                {sound.enabled ? <Volume2 className="size-4 text-primary" /> : <VolumeX className="size-4" />}
-              </button>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                value={sound.volume}
-                onChange={(e) => persist({ ...sound, volume: Number(e.target.value) })}
-                className="flex-1"
-              />
-              <button
-                type="button"
-                className="text-xs text-cyan"
-                onClick={() => {
-                  playPing(sound.volume);
-                }}
-              >
-                тест
-              </button>
-            </div>
           </div>
           <ul className="max-h-64 overflow-y-auto">
             {items.slice(0, 12).map((n) => (

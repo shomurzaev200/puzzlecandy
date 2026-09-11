@@ -58,6 +58,7 @@ const PAGES: Record<string, ComponentType> = {
   audit: AuditPage,
   errors: ErrorsPage,
   roles: RolesPage,
+  staff: RolesPage,
   ops: OpsHubPage,
   refunds: RefundsPage,
   promo: PromoPage,

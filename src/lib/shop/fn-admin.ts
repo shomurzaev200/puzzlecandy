@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
-import { dashboardStats, listAdmins, requireAdmin, setAdminRole } from "./admin";
+import { dashboardStats, listAdmins, requireAdmin, setAdminRole, countAdmins } from "./admin";
 import { many, one, sql as getSql, asInt } from "./db";
 import { searchUsers, setDiscount, setUserStatus } from "./users";
 import { listPayments, manualBalance, reviewPayment, setSetting } from "./finance";
@@ -13,6 +13,7 @@ import { formatMoney } from "./money";
 import type { AdminRole, Json } from "./types";
 import { ensureSeed } from "./seed";
 import { ALL_PERMISSIONS } from "./rbac";
+import { createStaff, disableStaff, enableStaff, revokeStaffSessions, STAFF_ROLES } from "./staff";
 import {
   checkAccountNow,
   checkBotNow,
@@ -52,6 +53,12 @@ export const adminMe = createServerFn({ method: "GET" })
     const admin = await requireAdmin(context.userId);
     return admin;
   });
+
+export const authHasAdmin = createServerFn({ method: "GET" }).handler(async () => {
+  await ensureSeed();
+  const n = await countAdmins();
+  return { hasAdmin: n > 0 };
+});
 
 export const adminDashboard = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
@@ -845,7 +852,7 @@ export const adminRoles = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     await requireAdmin(context.userId, "roles.write");
     const admins = await listAdmins();
-    return { admins, permissions: ALL_PERMISSIONS };
+    return { admins, permissions: ALL_PERMISSIONS, roles: STAFF_ROLES };
   });
 
 export const adminSetRole = createServerFn({ method: "POST" })
@@ -855,6 +862,43 @@ export const adminSetRole = createServerFn({ method: "POST" })
     const admin = await requireAdmin(context.userId, "roles.write");
     await setAdminRole({ adminId: data.id, actorId: admin.id, role: data.role, status: data.status });
     return { ok: true };
+  });
+
+export const adminCreateStaff = createServerFn({ method: "POST" })
+  .validator((d: { email: string; name: string; role: AdminRole; generatePassword?: boolean }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "roles.write");
+    if (admin.role !== "SUPER_ADMIN") return { ok: false as const, error: "Только супер-админ может добавлять сотрудников." };
+    const result = await createStaff({
+      actorId: admin.id,
+      email: data.email,
+      name: data.name,
+      role: data.role,
+      mustChangePassword: true,
+    });
+    return { ok: true as const, email: result.email, password: result.password };
+  });
+
+export const adminDisableStaff = createServerFn({ method: "POST" })
+  .validator((d: { id: string; enable?: boolean }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "roles.write");
+    if (admin.role !== "SUPER_ADMIN") return { ok: false as const, error: "Только супер-админ." };
+    if (data.enable) await enableStaff({ adminId: data.id, actorId: admin.id });
+    else await disableStaff({ adminId: data.id, actorId: admin.id });
+    return { ok: true as const };
+  });
+
+export const adminRevokeStaffSessions = createServerFn({ method: "POST" })
+  .validator((d: { userId: string }) => d)
+  .middleware([authMiddleware])
+  .handler(async ({ context, data }) => {
+    const admin = await requireAdmin(context.userId, "roles.write");
+    if (admin.role !== "SUPER_ADMIN") return { ok: false as const, error: "Только супер-админ." };
+    const n = await revokeStaffSessions(data.userId);
+    return { ok: true as const, n };
   });
 
 export const adminSearch = createServerFn({ method: "GET" })

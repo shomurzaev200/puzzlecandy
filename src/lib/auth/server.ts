@@ -32,6 +32,7 @@
 import { betterAuth } from "better-auth";
 import { bearer, genericOAuth } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { createAuthMiddleware } from "better-auth/api";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
@@ -42,10 +43,16 @@ import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
 import {
   GROK_ISSUER_DEFAULT,
-  PREVIEW_ALLOWED_HOSTS,
   PREVIEW_CLIENT_ID,
   PREVIEW_CLIENT_SECRET,
 } from "./preview";
+import {
+  allowedHosts,
+  publicBaseURL,
+  resolveTrustedOrigins,
+  useHttpsCookies,
+} from "./trusted-origins";
+import { assertPublicSignupAllowed } from "../shop/signup-guard";
 
 // Kick (and share) PGLite bootstrap as soon as the auth server module loads.
 void ensureDbReady();
@@ -91,39 +98,15 @@ export const authConfigured =
 // it derives the origin per-request from the (proxied) host, validated against the
 // preview allowlist, which makes the OAuth `redirect_uri` the concrete preview URL
 // the broker's preview client accepts.
-const explicitBaseURL = env("BETTER_AUTH_URL");
-// Explicit `string[]` (not a readonly tuple) — Better Auth's DynamicBaseURLConfig
-// requires a mutable `allowedHosts: string[]`.
-const previewAllowedHosts: string[] = [...PREVIEW_ALLOWED_HOSTS];
-// Local `npm run dev` (port 8080 contract). Browsers may send Origin as any of
-// these for the same server — trusting only `localhost` rejects `127.0.0.1` and
-// breaks email/password with "Invalid origin".
-const LOCAL_DEV_ORIGINS: string[] = [
-  "http://localhost:8080",
-  "http://127.0.0.1:8080",
-  "http://[::1]:8080",
-];
+const explicitBaseURL = publicBaseURL();
+const previewAllowedHosts: string[] = allowedHosts();
 const baseURL = explicitBaseURL ?? {
-  // Include loopback hosts so dynamic baseURL resolves for local email/password
-  // (not only the preview wildcard).
-  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
-  // `auto` → trust both http:// and https:// expansions of allowedHosts
-  // (preview is https; local dev is http).
+  allowedHosts: previewAllowedHosts,
   protocol: "auto" as const,
   fallback: "http://localhost:8080",
 };
 
-// Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
-// Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+const trustedOrigins = (request?: Request) => resolveTrustedOrigins(request);
 
 const databaseUrl = env("DATABASE_URL");
 
@@ -146,7 +129,10 @@ const database = databaseUrl
   : { dialect: pgliteDialect(() => getPglite()), type: "postgres" as const };
 
 /** Session token cookie name — also read by the live-preview popup completion page. */
-export const SESSION_TOKEN_COOKIE = "__Host-grok-auth.session_token";
+export const SESSION_TOKEN_COOKIE = useHttpsCookies()
+  ? "__Host-grok-auth.session_token"
+  : "pc-auth.session_token";
+const httpsCookies = useHttpsCookies();
 
 // Built separately so the `betterAuth({...})` call stays easy to edit without
 // breaking brackets (models often trip on the conditional plugin spread).
@@ -180,9 +166,16 @@ export const auth = betterAuth({
   database,
 
   // CSRF / origin check for credentialed auth POSTs (email sign-up/sign-in, …).
-  // See `trustedOrigins` construction above — must cover live preview hosts AND
-  // local loopback variants, or clients get "Invalid origin".
+  // Function form: same-origin of the current Host is trusted (VPS public IP),
+  // plus loopback, preview hosts, and BETTER_AUTH_URL / BETTER_AUTH_TRUSTED_ORIGINS.
   trustedOrigins,
+
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path !== "/sign-up/email") return;
+      await assertPublicSignupAllowed();
+    }),
+  },
 
   // Encrypt broker-issued OAuth tokens at rest, and treat the broker's upstreams
   // as trusted first-party identities. The broker owns identity and X emails are
@@ -221,14 +214,25 @@ export const auth = betterAuth({
   // Secure + the names ourselves. (Browsers allow Secure cookies on
   // `http://localhost`, so local dev still works.)
   advanced: {
-    useSecureCookies: false,
-    defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
-    cookies: {
-      session_token: { name: SESSION_TOKEN_COOKIE },
-      session_data: { name: "__Host-grok-auth.session_data" },
-      account_data: { name: "__Host-grok-auth.account_data" },
-      dont_remember: { name: "__Host-grok-auth.dont_remember" },
+    useSecureCookies: httpsCookies,
+    defaultCookieAttributes: {
+      secure: httpsCookies,
+      sameSite: "lax",
+      path: "/",
     },
+    cookies: httpsCookies
+      ? {
+          session_token: { name: SESSION_TOKEN_COOKIE },
+          session_data: { name: "__Host-grok-auth.session_data" },
+          account_data: { name: "__Host-grok-auth.account_data" },
+          dont_remember: { name: "__Host-grok-auth.dont_remember" },
+        }
+      : {
+          session_token: { name: SESSION_TOKEN_COOKIE },
+          session_data: { name: "pc-auth.session_data" },
+          account_data: { name: "pc-auth.account_data" },
+          dont_remember: { name: "pc-auth.dont_remember" },
+        },
   },
 
   plugins: [

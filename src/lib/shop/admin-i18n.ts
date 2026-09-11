@@ -40,7 +40,7 @@ export const ADMIN: Record<string, Pack> = {
   nav_settings: { ru: "Настройки", uz: "Sozlamalar", en: "Settings" },
   nav_audit: { ru: "Журнал действий", uz: "Harakatlar jurnali", en: "Audit log" },
   nav_errors: { ru: "Центр ошибок", uz: "Xatolar markazi", en: "Error center" },
-  nav_roles: { ru: "Администраторы и права", uz: "Adminlar va huquqlar", en: "Admins & roles" },
+  nav_roles: { ru: "Сотрудники и доступ", uz: "Xodimlar va kirish", en: "Staff & access" },
 
   search_placeholder: { ru: "Поиск: @username, Telegram ID, ORD-, PAY-", uz: "Qidiruv", en: "Search users, ORD-, PAY-" },
   cmd_placeholder: { ru: "Быстрый поиск и действия…", uz: "Tezkor qidiruv…", en: "Quick search and actions…" },
@@ -306,7 +306,19 @@ export const ADMIN: Record<string, Pack> = {
   no_errors: { ru: "Ошибок не зафиксировано.", uz: "Xato yo‘q.", en: "No errors recorded." },
 
   roles_kicker: { ru: "ДОСТУП", uz: "KIRISH", en: "ACCESS" },
-  roles_title: { ru: "Администраторы и права", uz: "Huquqlar", en: "Roles" },
+  roles_title: { ru: "Сотрудники и доступ", uz: "Xodimlar", en: "Staff" },
+  staff_add: { ru: "Добавить администратора", uz: "Admin qo‘shish", en: "Add admin" },
+  staff_gen_pass: { ru: "Сгенерировать безопасный пароль автоматически", uz: "Parolni avtomatik yaratish", en: "Generate a strong password" },
+  staff_must_change: { ru: "Требовать смену пароля при первом входе", uz: "Birinchi kirishda parolni almashtirish", en: "Require password change on first login" },
+  staff_disable: { ru: "Отозвать доступ", uz: "Kirishni yopish", en: "Revoke access" },
+  staff_enable: { ru: "Восстановить доступ", uz: "Kirishni ochish", en: "Restore access" },
+  staff_sessions: { ru: "Сбросить сессии", uz: "Sessionlarni tozalash", en: "Revoke sessions" },
+  staff_copy_pass: { ru: "Скопировать пароль", uz: "Parolni nusxalash", en: "Copy password" },
+  staff_pass_once: { ru: "Пароль показан один раз. Сохраните его.", uz: "Parol bir marta ko‘rsatiladi.", en: "Password is shown once. Save it." },
+  staff_active: { ru: "Активен", uz: "Faol", en: "Active" },
+  staff_blocked: { ru: "Заблокирован", uz: "Bloklangan", en: "Disabled" },
+  staff_last: { ru: "Последний вход", uz: "So‘nggi kirish", en: "Last login" },
+  staff_created: { ru: "Дата создания", uz: "Yaratilgan", en: "Created" },
 
   search_kicker: { ru: "ПОИСК", uz: "QIDIRUV", en: "SEARCH" },
   unknown_module: { ru: "Неизвестный раздел", uz: "Noma'lum bo‘lim", en: "Unknown module" },
@@ -320,6 +332,8 @@ export const ADMIN: Record<string, Pack> = {
   login_kicker: { ru: "PUZZLECANDY / ВХОД", uz: "PUZZLECANDY / KIRISH", en: "PUZZLECANDY / ACCESS" },
   login_title: { ru: "Вход в панель", uz: "Panelga kirish", en: "Command login" },
   login_copy: { ru: "Первый вошедший оператор становится супер-админом.", uz: "Birinchi operator SUPER_ADMIN bo‘ladi.", en: "First signed-in operator becomes SUPER_ADMIN." },
+  login_copy_existing: { ru: "Введите учётные данные оператора.", uz: "Operator ma’lumotlarini kiriting.", en: "Enter operator credentials." },
+  signup_closed: { ru: "Регистрация закрыта. Новых сотрудников добавляет супер-админ.", uz: "Ro‘yxatdan o‘tish yopiq.", en: "Sign-up closed. Super-admin adds staff." },
   email: { ru: "Электронная почта", uz: "Email", en: "Email" },
   password: { ru: "Пароль", uz: "Parol", en: "Password" },
   sign_in: { ru: "Войти", uz: "Kirish", en: "Sign in" },
@@ -451,6 +465,10 @@ const ROLE_RU: Record<string, Pack> = {
   SUPPORT: { ru: "Поддержка", uz: "Yordam", en: "Support" },
   FINANCE: { ru: "Финансист", uz: "Moliyachi", en: "Finance" },
   COURIER_MANAGER: { ru: "Менеджер курьеров", uz: "Kuryer menejeri", en: "Courier manager" },
+  FINANCE_ADMIN: { ru: "Финансы", uz: "Moliya", en: "Finance admin" },
+  ORDER_OPERATOR: { ru: "Оператор заказов", uz: "Buyurtma operatori", en: "Order operator" },
+  COURIER_DISPATCHER: { ru: "Диспетчер курьеров", uz: "Kuryer dispatcher", en: "Courier dispatcher" },
+  SUPPORT_AGENT: { ru: "Агент поддержки", uz: "Yordam agenti", en: "Support agent" },
 };
 
 const TX_RU: Record<string, Pack> = {

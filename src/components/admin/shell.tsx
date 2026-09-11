@@ -59,6 +59,7 @@ export const NAV: NavItem[] = [
   { to: "/admin/settings", label: ta("nav_settings"), icon: Settings, perm: "settings.read", emoji: "⚙️" },
   { to: "/admin/audit", label: ta("nav_audit"), icon: ScrollText, perm: "audit.read", emoji: "🛡" },
   { to: "/admin/errors", label: ta("nav_errors"), icon: ShieldAlert, perm: "errors.read", emoji: "🚨" },
+  { to: "/admin/staff", label: ta("nav_roles"), icon: Shield, perm: "roles.write", emoji: "🔐" },
   { to: "/admin/ops", label: "Операции", icon: Activity, perm: "dashboard", emoji: "⚡" },
   { to: "/admin/refunds", label: "Возвраты", icon: Wallet, perm: "payments.read", emoji: "↩️" },
   { to: "/admin/promo", label: "Промокоды", icon: Star, perm: "settings.read", emoji: "🎟" },

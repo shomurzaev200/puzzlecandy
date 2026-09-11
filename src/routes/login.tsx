@@ -1,11 +1,20 @@
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { Button } from "@/components/ui/button";
 import { ta } from "@/lib/shop/admin-i18n";
+import { authHasAdmin } from "@/lib/shop/fn-admin";
 
 export const Route = createFileRoute("/login")({ component: Login });
+
+function mapAuthError(raw: string): string {
+  if (/invalid origin/i.test(raw)) {
+    return "Домен не в списке доверенных. Задайте BETTER_AUTH_URL=http://ВАШ_IP:8080 и перезапустите сервер.";
+  }
+  if (/закрыта|forbidden/i.test(raw)) return raw;
+  return raw || ta("login_failed");
+}
 
 function Login() {
   const { user, isPending } = useCurrentUserState();
@@ -14,11 +23,20 @@ function Login() {
   const [mode, setMode] = useState<"in" | "up">("in");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [hasAdmin, setHasAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    authHasAdmin()
+      .then((r) => setHasAdmin(r.hasAdmin))
+      .catch(() => setHasAdmin(false));
+  }, []);
 
   if (isPending) {
     return <main className="grid-bg min-h-screen" />;
   }
   if (user) return <Navigate to="/admin" />;
+
+  const allowSignup = hasAdmin === false;
 
   async function onEmail(e: React.FormEvent) {
     e.preventDefault();
@@ -26,6 +44,7 @@ function Login() {
     setError(null);
     try {
       if (mode === "up") {
+        if (!allowSignup) throw new Error("Регистрация закрыта. Обратитесь к супер-админу.");
         const { error: err } = await authClient.signUp.email({
           email,
           password,
@@ -43,7 +62,7 @@ function Login() {
       }
       window.location.href = "/admin";
     } catch (err) {
-      setError(err instanceof Error ? err.message : ta("login_failed"));
+      setError(mapAuthError(err instanceof Error ? err.message : ta("login_failed")));
     } finally {
       setBusy(false);
     }
@@ -57,7 +76,7 @@ function Login() {
           {ta("login_kicker")}
         </Link>
         <h1 className="text-3xl font-semibold tracking-tight">{ta("login_title")}</h1>
-        <p className="text-sm text-muted">{ta("login_copy")}</p>
+        <p className="text-sm text-muted">{hasAdmin ? ta("login_copy_existing") : ta("login_copy")}</p>
         <div className="panel space-y-3 rounded-xl p-5">
           {authEnabled ? (
             GROK_PROVIDERS.map((p) => (
@@ -99,7 +118,7 @@ function Login() {
                 onChange={(e) => setPassword(e.target.value)}
                 type="password"
                 required
-                minLength={8}
+                minLength={mode === "up" ? 12 : 8}
                 autoComplete={mode === "up" ? "new-password" : "current-password"}
               />
             </label>
@@ -108,13 +127,17 @@ function Login() {
               {mode === "in" ? ta("sign_in") : ta("create_admin")}
             </Button>
           </form>
-          <button
-            type="button"
-            className="text-xs text-cyan"
-            onClick={() => setMode(mode === "in" ? "up" : "in")}
-          >
-            {mode === "in" ? ta("create_first") : ta("have_account")}
-          </button>
+          {allowSignup ? (
+            <button
+              type="button"
+              className="text-xs text-cyan"
+              onClick={() => setMode(mode === "in" ? "up" : "in")}
+            >
+              {mode === "in" ? ta("create_first") : ta("have_account")}
+            </button>
+          ) : (
+            <p className="text-xs text-muted">{ta("signup_closed")}</p>
+          )}
         </div>
       </div>
     </main>

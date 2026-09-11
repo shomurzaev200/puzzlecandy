@@ -61,6 +61,8 @@ test("RBAC finance cannot delete products", () => {
   assert.equal(can("FINANCE", "products.delete"), false);
   assert.equal(can("SUPER_ADMIN", "roles.write"), true);
   assert.ok(permissionsFor("SUPPORT").includes("support.write"));
+  assert.equal(can("FINANCE_ADMIN", "settings.secrets"), false);
+  assert.equal(can("ORDER_OPERATOR", "payments.review"), false);
 });
 
 test("i18n packs cover ru/uz/en for every key", () => {

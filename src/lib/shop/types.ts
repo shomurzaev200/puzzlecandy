@@ -20,7 +20,11 @@ export type AdminRole =
   | "MODERATOR"
   | "SUPPORT"
   | "FINANCE"
-  | "COURIER_MANAGER";
+  | "COURIER_MANAGER"
+  | "FINANCE_ADMIN"
+  | "ORDER_OPERATOR"
+  | "COURIER_DISPATCHER"
+  | "SUPPORT_AGENT";
 
 export type Permission =
   | "dashboard"

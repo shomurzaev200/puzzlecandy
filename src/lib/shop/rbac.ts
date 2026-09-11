@@ -76,6 +76,42 @@ const ROLE_PERMS: Record<AdminRole, Permission[]> = {
     "map.read",
     "notifications.read",
   ],
+  FINANCE_ADMIN: [
+    "dashboard",
+    "users.read",
+    "users.balance",
+    "payments.read",
+    "payments.review",
+    "transactions.read",
+    "analytics.read",
+    "export",
+    "notifications.read",
+  ],
+  ORDER_OPERATOR: [
+    "dashboard",
+    "users.read",
+    "orders.read",
+    "orders.write",
+    "reviews.moderate",
+    "support.read",
+    "support.write",
+    "notifications.read",
+  ],
+  COURIER_DISPATCHER: [
+    "dashboard",
+    "couriers.read",
+    "couriers.write",
+    "orders.read",
+    "orders.write",
+    "map.read",
+    "notifications.read",
+  ],
+  SUPPORT_AGENT: [
+    "dashboard",
+    "support.read",
+    "support.write",
+    "notifications.read",
+  ],
 };
 
 export function permissionsFor(role: AdminRole): Permission[] {

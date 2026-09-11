@@ -4,6 +4,7 @@ import { permissionsFor } from "./rbac";
 import type { AdminRole, Permission } from "./types";
 import { ensureSeed } from "./seed";
 import { audit } from "./audit";
+import { readClientIp } from "./request-ip";
 
 export type AdminActor = {
   id: string;
@@ -12,7 +13,14 @@ export type AdminActor = {
   name: string | null;
   role: AdminRole;
   permissions: Permission[];
+  mustChangePassword?: boolean;
 };
+
+export async function countAdmins(): Promise<number> {
+  const db = await getSql();
+  const count = await one<{ n: number }>(db, `select count(*)::int as n from admins`);
+  return asInt(count?.n);
+}
 
 export async function requireAdmin(userId: string, permission?: Permission): Promise<AdminActor> {
   await ensureSeed();
@@ -22,8 +30,8 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
     `select id, email, name from "user" where id=$1`,
     [userId],
   );
-  const count = await one<{ n: number }>(db, `select count(*)::int as n from admins`);
-  if (asInt(count?.n) === 0) {
+  const n = await countAdmins();
+  if (n === 0) {
     const id = nid("adm");
     await db.query(
       `insert into admins (id, user_id, email, name, role, status, last_login_at)
@@ -36,6 +44,7 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
       action: "admin.bootstrap",
       entity: "admin",
       entityId: id,
+      ip: readClientIp(),
     });
   }
   const admin = await one<{
@@ -45,6 +54,7 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
     name: string | null;
     role: AdminRole;
     status: string;
+    must_change_password?: boolean;
   }>(db, `select * from admins where user_id=$1`, [userId]);
   if (!admin || admin.status !== "ACTIVE") {
     const err = new Error("Forbidden");
@@ -59,6 +69,15 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
   );
   const permissions = extra.length ? extra.map((r) => r.permission) : permissionsFor(admin.role);
   if (permission && !permissions.includes(permission) && admin.role !== "SUPER_ADMIN") {
+    await audit(db, {
+      actorId: admin.id,
+      actorType: "ADMIN",
+      action: "ACCESS_DENIED",
+      entity: "permission",
+      entityId: permission,
+      ip: readClientIp(),
+      newValue: { role: admin.role, permission },
+    });
     const err = new Error("Forbidden");
     (err as Error & { status?: number }).status = 403;
     throw err;
@@ -70,6 +89,7 @@ export async function requireAdmin(userId: string, permission?: Permission): Pro
     name: admin.name,
     role: admin.role,
     permissions,
+    mustChangePassword: Boolean(admin.must_change_password),
   };
 }
 
@@ -165,11 +185,12 @@ export async function dashboardStats() {
 
 export async function listAdmins() {
   const db = await getSql();
-  return many(db, `select id, user_id, email, name, role, status, created_at, last_login_at from admins order by created_at`);
+  return many(db, `select * from admins order by created_at`);
 }
 
 export async function setAdminRole(opts: { adminId: string; actorId: string; role: AdminRole; status?: string }) {
   const db = await getSql();
+  const current = await one<{ role: string; status: string }>(db, `select role, status from admins where id=$1`, [opts.adminId]);
   await db.query(`update admins set role=$2, status=coalesce($3,status), updated_at=now() where id=$1`, [
     opts.adminId,
     opts.role,
@@ -181,6 +202,8 @@ export async function setAdminRole(opts: { adminId: string; actorId: string; rol
     action: "roles.write",
     entity: "admin",
     entityId: opts.adminId,
+    oldValue: current,
     newValue: { role: opts.role, status: opts.status },
+    ip: readClientIp(),
   });
 }
