@@ -16,6 +16,17 @@ function envVal(key: string): string | undefined {
   return v || undefined;
 }
 
+/** Reject empty hosts (`http://:8080`) — Better Auth throws and kills Vite. */
+export function isUsableHttpUrl(value: string | undefined): value is string {
+  if (!value) return false;
+  try {
+    const u = new URL(value);
+    return (u.protocol === "http:" || u.protocol === "https:") && Boolean(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
 export function originsFromEnv(): string[] {
   const raw = [
     envVal("BETTER_AUTH_URL"),
@@ -28,7 +39,7 @@ export function originsFromEnv(): string[] {
   return raw
     .split(",")
     .map((s) => s.trim().replace(/\/$/, ""))
-    .filter((s) => s.length > 0 && s.startsWith("http"));
+    .filter(isUsableHttpUrl);
 }
 
 export function hostsFromOrigins(origins: string[]): string[] {
@@ -120,7 +131,10 @@ export function allowedHosts(): string[] {
 }
 
 export function publicBaseURL(): string | undefined {
-  return envVal("BETTER_AUTH_URL") ?? envVal("APP_PUBLIC_URL");
+  const raw = envVal("BETTER_AUTH_URL") ?? envVal("APP_PUBLIC_URL");
+  if (!raw) return undefined;
+  const trimmed = raw.replace(/\/$/, "");
+  return isUsableHttpUrl(trimmed) ? trimmed : undefined;
 }
 
 /** HTTPS-only Host cookies; HTTP IP deploys cannot set `__Host-` / Secure cookies. */

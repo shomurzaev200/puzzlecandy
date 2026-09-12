@@ -26,8 +26,14 @@ git clone https://github.com/shomurzaev200/puzzlecandy.git
 cd puzzlecandy
 
 # 3. Публичный URL сервера (обязательно для входа с IP)
-export BETTER_AUTH_URL=http://18.130.218.152:8080
-export BETTER_AUTH_TRUSTED_ORIGINS=http://18.130.218.152:8080
+# Ubuntu 24 / AWS: метаданные только через IMDSv2-токен.
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+PUB=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+echo "public-ipv4=$PUB"
+# если PUB пустой — у инстанса нет публичного IP: AWS → Elastic IPs → Associate.
+# не экспортируйте BETTER_AUTH_URL=http://:8080 — Vite падает.
+export BETTER_AUTH_URL="http://${PUB}:8080"
+export BETTER_AUTH_TRUSTED_ORIGINS="http://${PUB}:8080"
 
 # 4. Запуск
 npm install
@@ -75,8 +81,10 @@ cd ~/puzzlecandy
 git pull
 pkill -f vite || true
 rm -rf node_modules/.vite
-export BETTER_AUTH_URL=http://18.130.218.152:8080
-export BETTER_AUTH_TRUSTED_ORIGINS=http://18.130.218.152:8080
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+PUB=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
+export BETTER_AUTH_URL="http://${PUB}:8080"
+export BETTER_AUTH_TRUSTED_ORIGINS="http://${PUB}:8080"
 npm run dev
 ```
 
