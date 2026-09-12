@@ -35,17 +35,29 @@ echo "public-ipv4=$PUB"
 export BETTER_AUTH_URL="http://${PUB}:8080"
 export BETTER_AUTH_TRUSTED_ORIGINS="http://${PUB}:8080"
 
-# 4. Запуск
+# 4. Круглосуточный запуск (systemd). Не держите `npm run dev` в SSH —
+#    выключение ноутбука тогда рвёт сессию и убивает ботов/админку.
 npm install
 npm run seed:admin    # печатает email + пароль супер-админа ОДИН раз
-npm run dev
+sudo bash scripts/install-vps-service.sh
 ```
+
+После этого **закройте SSH** — магазин, админка и Telegram-боты остаются на VPS.
+Ноутбук можно выключать. Не запускайте второй `npm run dev`.
+
+```bash
+sudo systemctl status puzzlecandy
+journalctl -u puzzlecandy -f
+sudo systemctl restart puzzlecandy
+```
+
+Elastic IP в AWS обязателен, иначе после Stop/Start публичный адрес сменится.
 
 Открывайте **с портом**: `http://ВАШ_ПУБЛИЧНЫЙ_IP:8080/admin`
 
 Если браузер пишет `ERR_CONNECTION_REFUSED`:
 
-1. Процесс `npm run dev` должен быть запущен и показывать `Local: http://localhost:8080/`.
+1. `sudo systemctl status puzzlecandy` — `active (running)`. Если нет: `sudo systemctl restart puzzlecandy`.
 2. AWS Security Group (inbound): TCP **8080** с `0.0.0.0/0`.
 3. `sudo ufw allow 8080/tcp` (если ufw включён).
 4. Не открывайте `http://IP` без `:8080` — это порт 80, его приложение не слушает.
@@ -79,13 +91,7 @@ npm run set-role -- ВАШ_EMAIL SUPER_ADMIN
 ```bash
 cd ~/puzzlecandy
 git pull
-pkill -f vite || true
-rm -rf node_modules/.vite
-TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
-PUB=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/public-ipv4)
-export BETTER_AUTH_URL="http://${PUB}:8080"
-export BETTER_AUTH_TRUSTED_ORIGINS="http://${PUB}:8080"
-npm run dev
+sudo bash scripts/install-vps-service.sh
 ```
 
 Затем в браузере: жёсткое обновление (Ctrl+Shift+R). Telegram-бот на HTTP-IP отвечает через long-poll, не через webhook.
